@@ -13,18 +13,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import ray
-
 from ..core.trial import TrialConfig, TrialResult
 
 logger = logging.getLogger(__name__)
 
 
-# Simple Ray actor to hold cancellation state that can be modified externally
-
-
-@ray.remote
-class CancellationFlag:
+# Lightweight actor class for Ray cancellation state (wrapped with ray.remote
+# only when RayExecutionBackend is used, so local backend works without Ray)
+class _CancellationFlag:
     """Lightweight Ray actor to hold mutable cancellation state."""
 
     def __init__(self):
@@ -113,6 +109,15 @@ class RayExecutionBackend(ExecutionBackend):
         self.venv_path = venv_path
         self.conda_env = conda_env
 
+        try:
+            import ray
+        except ImportError as e:
+            msg = (
+                "Ray is required for the Ray execution backend. "
+                "Install with: pip install 'auto-tune-vllm[ray]'"
+            )
+            raise ImportError(msg) from e
+        self._ray = ray
         self._ensure_ray_initialized()
 
     def _build_runtime_env(self) -> Dict:
@@ -175,6 +180,7 @@ class RayExecutionBackend(ExecutionBackend):
 
     def _ensure_ray_initialized(self):
         """Initialize Ray if not already initialized."""
+        ray = self._ray
         try:
             if not ray.is_initialized():
                 try:
@@ -229,7 +235,7 @@ class RayExecutionBackend(ExecutionBackend):
             time.sleep(3)
 
             # Connect to the newly started Ray head using auto-discovery
-            ray.init(address="auto", ignore_reinit_error=True)
+            self._ray.init(address="auto", ignore_reinit_error=True)
             self._started_ray_head = True
 
         except subprocess.CalledProcessError as e:
@@ -241,11 +247,15 @@ class RayExecutionBackend(ExecutionBackend):
 
     def submit_trial(self, trial_config: TrialConfig) -> JobHandle:
         """Submit trial to Ray cluster."""
+        import ray
+
+        self._ray = ray
         from .trial_controller import RayTrialActor
 
         # Create a lightweight cancellation flag actor (separate from trial actor)
         # This can be called even while the trial actor is busy
-        cancellation_flag_actor = CancellationFlag.remote()
+        CancellationFlagActor = ray.remote(_CancellationFlag)
+        cancellation_flag_actor = CancellationFlagActor.remote()
 
         # Create Ray actor with resource requirements from trial config
         # Extract num_gpus and num_cpus from trial's resource_requirements
@@ -291,6 +301,7 @@ class RayExecutionBackend(ExecutionBackend):
         self, job_handles: List[JobHandle]
     ) -> Tuple[List[TrialResult], List[JobHandle]]:
         """Poll for completed Ray trials."""
+        ray = self._ray
         if not job_handles:
             return [], []
 
@@ -318,7 +329,7 @@ class RayExecutionBackend(ExecutionBackend):
 
             if ray_ref in ready_refs:
                 try:
-                    result = ray.get(ray_ref)  # Get completed result
+                    result = ray.get(ray_ref)
                     completed_results.append(result)
                     logger.info(f"Completed trial {handle.trial_id}")
                     # Remove from active jobs and actors
@@ -383,6 +394,7 @@ class RayExecutionBackend(ExecutionBackend):
         if not futures:
             return 0, 0
 
+        ray = self._ray
         try:
             refs_only = [ref for _, ref in futures]
             ready_refs, remaining_refs = ray.wait(
@@ -434,6 +446,7 @@ class RayExecutionBackend(ExecutionBackend):
             time.sleep(self.CANCELLATION_DETECTION_WAIT)
 
         # Phase 2: Cancel Ray tasks
+        ray = self._ray
         logger.info("Phase 2 - Cancelling Ray tasks...")
         cancelled = 0
         for job_id, task_ref in self.active_jobs.items():
@@ -469,7 +482,7 @@ class RayExecutionBackend(ExecutionBackend):
             )
             for job_id, actor in list(self.active_actors.items()):
                 try:
-                    ray.kill(actor)
+                    self._ray.kill(actor)
                     logger.debug(f"Force killed actor {job_id}")
                 except Exception as e:
                     logger.warning(f"Failed to kill actor {job_id}: {e}")
@@ -482,7 +495,7 @@ class RayExecutionBackend(ExecutionBackend):
 
     def shutdown(self):
         """Shutdown Ray cluster connection."""
-
+        ray = self._ray
         if ray.is_initialized():
             ray.shutdown()
             logger.info("Shutdown Ray cluster connection")
