@@ -238,12 +238,8 @@ def optimize_command(
             )
             execution_backend = LocalExecutionBackend(max_concurrent=max_local)
         else:
-            console.print(
-                f"[bold red]Error: Unknown backend '{backend}'.[/bold red]"
-            )
-            console.print(
-                "[blue]Use --backend ray or --backend local.[/blue]"
-            )
+            console.print(f"[bold red]Error: Unknown backend '{backend}'.[/bold red]")
+            console.print("[blue]Use --backend ray or --backend local.[/blue]")
             raise typer.Exit(1)
 
         # Run optimization
@@ -261,10 +257,7 @@ def optimize_command(
                     "(or set optimization.max_concurrent_trials in the config)"
                     "[/bold red]"
                 )
-                console.print(
-                    "YAML:\n  optimization:\n"
-                    "    max_concurrent_trials: 2"
-                )
+                console.print("YAML:\n  optimization:\n    max_concurrent_trials: 2")
                 raise typer.Exit(1)
         if final_max_concurrent_trials < 1:
             console.print(
@@ -437,8 +430,7 @@ def run_optimization_sync(
             # User interrupted with Ctrl+C
             progress.update(task, description="⚠️  Optimization interrupted by user")
             logger.warning(
-                "Keyboard interrupt received (Ctrl+C). "
-                "Initiating graceful shutdown..."
+                "Keyboard interrupt received (Ctrl+C). Initiating graceful shutdown..."
             )
             console.print(
                 "\n[yellow]⚠️  Interrupt signal received. "
@@ -945,9 +937,7 @@ def resume_command(
             )
             execution_backend = LocalExecutionBackend(max_concurrent=max_local)
         else:
-            console.print(
-                f"[bold red]Error: Unknown backend '{backend}'.[/bold red]"
-            )
+            console.print(f"[bold red]Error: Unknown backend '{backend}'.[/bold red]")
             console.print("[blue]Use --backend ray or --backend local.[/blue]")
             raise typer.Exit(1)
 
@@ -968,15 +958,12 @@ def resume_command(
                         "[/bold red]"
                     )
                     console.print(
-                        "Set CLI flag or config: "
-                        "optimization.max_concurrent_trials"
+                        "Set CLI flag or config: optimization.max_concurrent_trials"
                     )
                     raise typer.Exit(1)
             if final_max_concurrent_trials < 1:
                 console.print(
-                    "[bold red]"
-                    "❌ --max-concurrent-trials must be >= 1"
-                    "[/bold red]"
+                    "[bold red]❌ --max-concurrent-trials must be >= 1[/bold red]"
                 )
                 raise typer.Exit(1)
         if final_max_concurrent_trials is None and backend.lower() == "local":
