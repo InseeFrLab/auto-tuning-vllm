@@ -15,6 +15,7 @@ from rich.table import Table
 from ..core.config import StudyConfig
 from ..core.storage.postgres_utils import clear_study_data, verify_database_connection
 from ..core.study_controller import StudyController
+from ..utils.grid_cardinality import get_parameter_grid_cardinality
 from ..execution.backends import LocalExecutionBackend, RayExecutionBackend
 from ..logging.manager import CentralizedLogger, LogStreamer
 
@@ -378,7 +379,22 @@ def run_optimization_sync(
     create_db: bool = False,
 ):
     """Synchronous optimization runner with progress display."""
-    # Create study controller
+    total_trials = n_trials or config.optimization.n_trials
+    cardinality = get_parameter_grid_cardinality(config)
+    if total_trials > cardinality:
+        requested = total_trials
+        config.optimization.sampler = "grid"
+        config.optimization.n_trials = cardinality
+        config.optimization.n_startup_trials = min(
+            config.optimization.n_startup_trials, max(0, cardinality - 1)
+        )
+        n_trials = cardinality
+        total_trials = cardinality
+        console.print(
+            f"[yellow]n_trials ({requested}) exceeds grid cardinality ({cardinality}). "
+            "Search set to grid mode with n_trials = cardinality.[/yellow]"
+        )
+    # Create study controller (uses config with possibly updated sampler/n_trials)
     controller = StudyController.create_from_config(
         backend, config, create_db=create_db
     )
@@ -389,8 +405,6 @@ def run_optimization_sync(
     # Show appropriate log viewing instructions based on logging configuration
     _display_log_viewing_instructions(config)
     console.print()  # Add blank line for better readability
-
-    total_trials = n_trials or config.optimization.n_trials
 
     with Progress(
         SpinnerColumn(),
@@ -1101,6 +1115,11 @@ def validate_command(
             "Optimization", f"{opt_summary} ({study_config.optimization.sampler})"
         )
         table.add_row("Trials", str(study_config.optimization.n_trials))
+        cardinality = get_parameter_grid_cardinality(study_config)
+        table.add_row(
+            "Possible combinations (grid cardinality)",
+            str(cardinality),
+        )
         table.add_row("Model", study_config.benchmark.model)
         table.add_row(
             "Parameters",
