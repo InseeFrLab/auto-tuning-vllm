@@ -381,7 +381,7 @@ def run_optimization_sync(
     """Synchronous optimization runner with progress display."""
     total_trials = n_trials or config.optimization.n_trials
     cardinality = get_parameter_grid_cardinality(config)
-    if total_trials > cardinality:
+    if total_trials >= cardinality:
         requested = total_trials
         config.optimization.sampler = "grid"
         config.optimization.n_trials = cardinality
@@ -393,6 +393,15 @@ def run_optimization_sync(
         console.print(
             f"[yellow]n_trials ({requested}) exceeds grid cardinality ({cardinality}). "
             "Search set to grid mode with n_trials = cardinality.[/yellow]"
+        )
+    elif total_trials <= config.optimization.n_startup_trials:
+        # n_trials <= n_startup_trials: switch to random search and ignore n_startup_trials
+        original_startup = config.optimization.n_startup_trials
+        config.optimization.sampler = "random"
+        config.optimization.n_startup_trials = 0
+        console.print(
+            f"[yellow]n_trials ({total_trials}) <= n_startup_trials ({original_startup}). "
+            "Search set to random mode; n_startup_trials ignored.[/yellow]"
         )
     # Create study controller (uses config with possibly updated sampler/n_trials)
     controller = StudyController.create_from_config(
