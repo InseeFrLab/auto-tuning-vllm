@@ -31,3 +31,6 @@ Thumbs.db
 # Default logs and artifacts
 logs/
 optuna_studies/
+
+# db
+*.db
