@@ -17,7 +17,7 @@ optimization:
       direction: "minimize"
       percentile: "median"
   sampler: "random"  # Fast for testing (use nsga2 for real optimization)
-  n_trials: 10       # Small number for quick test
+  n_trials: 11       # Small number for quick test
   
   # Alternative: Use preset for common configurations
   # preset: "balanced"
