@@ -17,7 +17,7 @@ benchmark:
   output_tokens: 500
   
 logging:
-  file_path: "/tmp/auto-tune-vllm-logs"
+  file_path: "./auto-tune-vllm-logs"
   log_level: "INFO"
   
 parameters:
@@ -25,7 +25,7 @@ parameters:
   max_num_batched_tokens:
     enabled: true
     # No min/max specified - should use schema defaults
-    
+    options: [1024, 2048, 4096]
   # This parameter should use vLLM CLI defaults for gpu_memory_utilization (0.9)
   gpu_memory_utilization:
     enabled: true
@@ -38,8 +38,9 @@ parameters:
   kv_cache_dtype:
     enabled: true
     # Should use vLLM CLI default options
-    
+    options: ["auto", "fp8"]
   # Test boolean parameter with vLLM defaults
   enable_cuda_graphs:
     enabled: true
     # Should use vLLM CLI default behavior
+    options: [true, false]

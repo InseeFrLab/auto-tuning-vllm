@@ -3,7 +3,6 @@
 # Load with: StudyConfig.from_file("trial_config_version_specific.yaml", vllm_version="0.10.1.1")
 study:
   name: "vllm_v0_10_1_1_optimization"
-  database_url: "postgresql://tuner-user:${POSTGRES_PASSWORD}@localhost:5432/optuna"
 
 optimization:
   objective: "maximize"
@@ -19,10 +18,8 @@ benchmark:
   output_tokens: 750
 
 logging:
-  file_path: "/tmp/auto-tune-vllm-v0-10-1-1"
+  file_path: "./auto-tune-vllm-v0-10-1-1"
   log_level: "INFO"
-
-  database_url: "postgresql://tuner-user:${POSTGRES_PASSWORD}@localhost:5432/optuna"
 
 parameters:
   # Parameters that leverage vLLM v0.10.1.1 specific defaults
@@ -45,7 +42,8 @@ parameters:
     enabled: true
     # v0.10.1.1 default: False
     # Test dynamic KV scale calculation
-    
+    options: [true, false]
+
   prefix_caching_hash_algo:
     enabled: true
     # v0.10.1.1 options: builtin, sha256, sha256_cbor_64bit
@@ -61,7 +59,8 @@ parameters:
     enabled: true
     # v0.10.1.1 default: False
     # Test cascade attention disable
-    
+    options: [true, false]
+
   tokenizer_mode:
     enabled: true
     # v0.10.1.1 options: auto, custom, mistral, slow
@@ -72,7 +71,8 @@ parameters:
     enabled: true
     # v0.10.1.1 default: False
     # Test async vs sync scheduling
-    
+    options: [true, false]
+
   long_prefill_token_threshold:
     enabled: true
     # v0.10.1.1 default: 0
@@ -99,3 +99,4 @@ parameters:
     enabled: true
     # v0.10.1.1 default: False
     # Test custom all-reduce vs NCCL
+    options: [true, false]

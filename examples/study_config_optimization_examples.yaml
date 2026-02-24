@@ -173,7 +173,7 @@ benchmark:
   output_tokens: 500
 
 logging:
-  file_path: "/tmp/auto-tune-vllm-logs"
+  file_path: "./auto-tune-vllm-logs"
   log_level: "INFO"
 
 parameters:

@@ -13,19 +13,19 @@ optimization:
       direction: "minimize"
       percentile: "p95"  # Focus on worst-case TTFT
   sampler: "nsga2"  # Best for multi-objective optimization
-  n_trials: 100
+  n_trials: 11
   
 benchmark:
   benchmark_type: "guidellm"
   model: "Qwen/Qwen2.5-3B-Instruct"
-  max_seconds: 300
+  max_seconds: 100
   dataset: null  # Use synthetic data
-  prompt_tokens: 1000
-  output_tokens: 1000
+  prompt_tokens: 300
+  output_tokens: 300
   
 logging:
   # At least one of the following must be provided and must be valid
-  file_path: "/tmp/auto-tune-vllm-logs" # Optional local file path
+  file_path: "./auto-tune-vllm-logs" # Optional local file path
   log_level: "INFO"
   
 parameters:
@@ -34,16 +34,3 @@ parameters:
     min: 1024
     max: 3072
     step: 1024
-    
-  gpu_memory_utilization:
-    enabled: true
-    min: 0.92
-    max: 0.95
-    step: 0.01
-    
-  kv_cache_dtype:
-    enabled: true
-    options: ["auto", "fp8"]
-    
-  enable_cuda_graphs:
-    enabled: false

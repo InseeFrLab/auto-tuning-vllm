@@ -28,7 +28,7 @@ benchmark:
   rate: 10
 
 logging:
-  file_path: "/tmp/auto-tune-vllm-local-run/logs"  # Local temp folder
+  file_path: "./auto-tune-vllm-local-run/logs"  # Local temp folder
   log_level: "INFO"
 
 parameters: # parameters to optimize

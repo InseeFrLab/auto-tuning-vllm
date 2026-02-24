@@ -28,8 +28,13 @@ benchmark:
   max_seconds: 60             # Short benchmark
   dataset: null
   prompt_tokens: 100
-  output_tokens: 100
-  
+  output_tokens:
+
+logging:
+  # At least one of the following must be provided and must be valid
+  file_path: "./auto-tune-vllm-logs" # Optional local file path
+  log_level: "INFO"
+
 # No logging section specified - will use console logging only
 
 parameters:

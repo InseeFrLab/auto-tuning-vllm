@@ -32,7 +32,7 @@ benchmark:
   
 logging:
   # File logging only - no PostgreSQL needed!
-  file_path: "/tmp/auto-tune-vllm-logs"
+  file_path: "./auto-tune-vllm-logs"
   log_level: "INFO"
   
 parameters:
@@ -54,3 +54,4 @@ parameters:
     
   enable_cuda_graphs:
     enabled: true
+    options: [true, false]
