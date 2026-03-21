@@ -26,7 +26,7 @@ def _count_parameter_values(param: ParameterConfig) -> int:
         min_val = param.min_value
         max_val = param.max_value
         step = param.step or 1
-        if param.data_type == float:
+        if param.data_type is float:
             n_steps = int((max_val - min_val) / step) + 1
             return min(n_steps, _MAX_GRID_SIZE)
         current = min_val

@@ -16,9 +16,9 @@ from rich.table import Table
 from ..core.config import StudyConfig
 from ..core.storage.postgres_utils import clear_study_data, verify_database_connection
 from ..core.study_controller import StudyController
-from ..utils.grid_cardinality import get_parameter_grid_cardinality
 from ..execution.backends import RayExecutionBackend
 from ..logging.manager import CentralizedLogger, LogStreamer
+from ..utils.grid_cardinality import get_parameter_grid_cardinality
 
 # Setup rich console and app
 console = Console()
