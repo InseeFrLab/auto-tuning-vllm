@@ -25,10 +25,13 @@ def _count_parameter_values(param: ParameterConfig) -> int:
     if isinstance(param, RangeParameter):
         min_val = param.min_value
         max_val = param.max_value
-        step = param.step or 1
         if param.data_type is float:
-            n_steps = int((max_val - min_val) / step) + 1
+            step = param.step
+            if step is None:
+                return _MAX_GRID_SIZE
+            n_steps = int(round((max_val - min_val) / step)) + 1
             return min(n_steps, _MAX_GRID_SIZE)
+        step = param.step or 1
         current = min_val
         count = 0
         while current <= max_val and count < _MAX_GRID_SIZE:
@@ -37,7 +40,7 @@ def _count_parameter_values(param: ParameterConfig) -> int:
         return count
     if isinstance(param, BooleanParameter):
         return 2
-    return 0
+    raise ValueError(f"Unknown parameter type: {type(param)}")
 
 
 def get_parameter_grid_cardinality(
