@@ -29,7 +29,7 @@ jobs:
         uses: astral-sh/ruff-action@v3
 
   # ===========================================
-  # TYPE CHECK - Fast feedback with caching
+  # TYPE CHECK - Fast feedback
   # ===========================================
   type-check:
     name: Type Check (pyright)
@@ -45,14 +45,6 @@ jobs:
 
       - name: Install uv
         run: pip install uv
-
-      - name: Cache uv cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
 
       - name: Install dependencies
         run: uv pip install --system -e ".[dev]"
@@ -81,14 +73,6 @@ jobs:
 
       - name: Install uv
         run: pip install uv
-
-      - name: Cache uv cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-${{ matrix.python-version }}-
 
       - name: Install dependencies
         run: uv pip install --system -e ".[dev]"
@@ -122,14 +106,6 @@ jobs:
       - name: Install uv
         run: pip install uv
 
-      - name: Cache uv cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
-
       - name: Install dependencies
         run: uv pip install --system -e ".[dev]"
 
@@ -157,14 +133,6 @@ jobs:
 
       - name: Install uv
         run: pip install uv
-
-      - name: Cache uv cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-uv-
 
       - name: Install dependencies
         run: uv pip install --system -e ".[dev]"
