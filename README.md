@@ -81,7 +81,7 @@ This fork is actively being improved. Current work in progress:
 
 ### Immediate priorities
 
-- [ ] Add comprehensive test suite 
+- [ ] Add comprehensive test suite
 - [ ] Expand CI/CD to run tests, not just linting
 - [ ] Dependency hygiene - pin versions, reduce heavy core dependencies
 - [ ] Improve CLI error messages and validation

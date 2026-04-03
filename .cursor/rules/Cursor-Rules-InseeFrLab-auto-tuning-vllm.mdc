@@ -1,0 +1,157 @@
+---
+description: Project context and maintainer guidance for the InseeFrLab auto-tuning-vllm fork
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# Project context
+
+This repository is a maintained fork of:
+- Upstream: https://github.com/openshift-psap/auto-tuning-vllm
+- Fork: https://github.com/InseeFrLab/auto-tuning-vllm
+
+The original project is an auto-tuning framework for vLLM, originally built around Ray + Optuna, with GuideLLM-based benchmarking and YAML-driven studies/configuration.
+
+Our fork exists because we want to evolve the project toward a simpler, more maintainable, more production-friendly direction.
+
+# Why this fork exists
+
+Main motivations:
+1. Reduce or remove the dependency on Ray
+   - Ray adds operational and architectural complexity
+   - it is not always the right abstraction for local or small-scale tuning workflows
+   - a simpler execution backend is preferred when possible
+
+2. Revive a relatively inactive codebase
+   - treat this repo as a maintained product, not as a passive mirror
+   - prioritize maintainability, reliability, clarity, and real-world usability
+
+3. Improve dependency hygiene
+   - pin dependencies where needed
+   - make version compatibility explicit
+   - reduce fragile transitive behavior
+   - ensure reproducible installs and tests
+
+4. Strengthen engineering quality
+   - add or improve tests
+   - make refactors safe
+   - improve CI and local developer workflows
+   - document architectural decisions
+
+5. Expand tuning coverage
+   - support more parameters and strategies to explore
+   - include modern vLLM tuning levers when relevant
+   - speculative decoding / SD is a candidate area
+   - favor modular parameter definitions and validation
+
+# Maintainer mindset
+
+When working in this repo, optimize for:
+- simplicity over framework cleverness
+- explicitness over magic
+- production realism over toy abstractions
+- small, reviewable diffs
+- backward compatibility when reasonable
+- clear failure modes and good developer UX
+
+Assume that future contributors may not know the original codebase well.
+Code should be easy to navigate, test, and modify.
+
+# What Cursor should pay attention to
+
+## Architecture
+- Identify where Ray is deeply coupled to the core logic
+- Separate orchestration concerns from tuning/study logic
+- Separate benchmark execution, search space definition, result storage, and reporting
+- Prefer interfaces/protocols that allow multiple execution backends
+
+## Execution model
+- Favor a local/simple backend first
+- If Ray support remains, treat it as an optional backend rather than the project’s core identity
+- Avoid forcing distributed infrastructure for common use cases
+
+## Dependencies
+- Audit all runtime and dev dependencies
+- Identify overly broad version ranges
+- Propose safe pinning / constraints strategy
+- Flag dependencies that are heavy, stale, weakly justified, or hard to maintain
+- Prefer optional extras for heavyweight features
+
+## Testing
+- Add a strong test pyramid:
+  - fast unit tests
+  - integration tests for key workflows
+  - CLI smoke tests
+  - config validation tests
+- Tests must avoid unnecessary GPU dependency when possible
+- Mock external systems cleanly
+- Make it easy to run a useful subset locally
+
+## Config and UX
+- Improve schema validation for study configs
+- Make errors actionable
+- Validate incompatible parameter combinations early
+- Keep CLI and config semantics stable and predictable
+- Prefer typed config models over loose dictionaries when possible
+
+## vLLM-specific evolution
+- Keep pace with current vLLM tuning realities
+- Make tuning parameters modular and extensible
+- Consider support for:
+  - scheduling / batching-related knobs
+  - memory / KV-cache related knobs
+  - tensor parallel / pipeline parallel related knobs where relevant
+  - speculative decoding related knobs if architecture allows it
+- Do not add parameters blindly: require a clear benchmark and validation story
+
+## Benchmarking and metrics
+- Benchmarking should be reproducible
+- Make metrics collection explicit
+- Distinguish clearly between:
+  - latency metrics
+  - throughput metrics
+  - cost/resource metrics
+  - stability/error metrics
+- Ensure result artifacts are easy to compare across runs
+
+## Storage and results
+- Make study outputs easy to inspect, export, and diff
+- Avoid unnecessary infrastructure coupling
+- If PostgreSQL remains, justify it clearly
+- Consider lighter-weight options for local workflows if useful
+
+## CI/CD and repo hygiene
+- Strengthen GitHub Actions
+- Add linting, typing, tests, and packaging checks
+- Ensure install paths are documented and reproducible
+- Keep README aligned with actual behavior
+- Add contribution guidance for maintainers and external contributors
+
+# Coding preferences
+
+- Use Python typing consistently
+- Prefer small functions and explicit data flow
+- Avoid hidden global state
+- Keep abstractions justified by real needs
+- Add comments only where they clarify intent, not obvious mechanics
+- Preserve public APIs unless there is a strong reason to change them
+- When changing behavior, update docs and tests together
+
+# Output expectations for Cursor
+
+When asked to audit or propose changes:
+- be critical, not polite
+- identify the highest-leverage maintainer actions first
+- separate:
+  - quick wins
+  - medium refactors
+  - structural redesigns
+- explain trade-offs
+- propose a practical roadmap
+- prefer concrete file-level suggestions when possible
+
+# Links
+
+- Upstream project: https://github.com/openshift-psap/auto-tuning-vllm
+- Maintained fork: https://github.com/InseeFrLab/auto-tuning-vllm

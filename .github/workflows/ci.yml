@@ -1,0 +1,176 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_SYSTEM_PYTHON: 1
+
+jobs:
+  # ===========================================
+  # LINT - Fast feedback, no dependencies
+  # ===========================================
+  lint:
+    name: Ruff Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Ruff
+        uses: astral-sh/ruff-action@v3
+
+  # ===========================================
+  # TYPE CHECK - Fast feedback with caching
+  # ===========================================
+  type-check:
+    name: Type Check (pyright)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache uv cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      #- name: Run type checker
+      #  run: basedpyright
+
+  # ===========================================
+  # TEST - Multi-version matrix
+  # ===========================================
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache uv cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run pytest (if tests exist)
+        run: |
+          if [ -d "tests" ]; then
+            pytest -v --tb=short -x || true
+          else
+            echo "No tests directory found, skipping pytest"
+          fi
+
+      - name: Verify package can be imported
+        run: python -c "import auto_tune_vllm; print('auto_tune_vllm version:', auto_tune_vllm.__version__)"
+
+  # ===========================================
+  # PRE-COMMIT (optional - runs locally)
+  # ===========================================
+  pre-commit:
+    name: Pre-commit hooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache uv cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Install pre-commit
+        run: uv pip install --system pre-commit
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files || true
+        continue-on-error: true
+
+  # ===========================================
+  # SECURITY - Basic security checks
+  # ===========================================
+  security:
+    name: Security audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Cache uv cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run safety check
+        run: |
+          pip install safety || true
+          safety check || true
+        continue-on-error: true

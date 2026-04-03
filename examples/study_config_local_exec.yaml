@@ -20,10 +20,10 @@ optimization:
 
 benchmark:
   benchmark_type: "guidellm"
-  model: "RedHatAI/Qwen3-30B-A3B-FP8-dynamic" 
+  model: "RedHatAI/Qwen3-30B-A3B-FP8-dynamic"
   max_seconds: 300
   dataset: null  # Use synthetic data
-  prompt_tokens: 10000   
+  prompt_tokens: 10000
   output_tokens: 1000
   rate: 10
 
@@ -35,7 +35,7 @@ parameters: # parameters to optimize
   max_num_batched_tokens:
     enabled: true
     min: 1024
-    max: 32768 
+    max: 32768
     step: 1024
 
   gpu_memory_utilization:
@@ -66,7 +66,7 @@ parameters: # parameters to optimize
     enabled: true
     options: [1, 2, 4, 8]
 
-  max_seq_len_to_capture: 
+  max_seq_len_to_capture:
     enabled: true
     min: 4096
     max: 16384

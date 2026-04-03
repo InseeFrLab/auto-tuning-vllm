@@ -33,7 +33,7 @@ class PostgreSQLLogHandler(logging.Handler):
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                            INSERT INTO trial_logs 
+                            INSERT INTO trial_logs
                             (study_name, trial_id, component, timestamp, level, message, worker_node)
                             VALUES (%s, %s, %s, %s, %s, %s, %s)
                         """,  # noqa: E501
@@ -161,4 +161,3 @@ class BufferedLogHandler(logging.Handler):
         self.flush()
         self.target_handler.close()
         super().close()
-
