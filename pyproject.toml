@@ -69,15 +69,65 @@ line-length = 88
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
-ignore = []
+# E: pycodestyle errors (syntax, etc)
+# F: Pyflakes (unused imports, undefined names, etc)
+# I: isort (import sorting)
+# W: pycodestyle warnings
+# C: flake8-comprehensions (comprehension style)
+# N: pep8-naming (naming conventions)
+select = ["E", "F", "I", "W", "C", "N"]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "N802",  # function name should be lowercase (too strict)
+    "N803",  # argument name should be lowercase (too strict)
+    "N806",  # argument should be lowercase in function (too strict)
+    "C901",  # too complex (defer to complexity checks)
+    "N814",  # camelcase imported as constant (allow underscore aliases)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test_installation.py" = ["N814"]  # Allow underscore aliases in test file
+# Allow unsafe fixes to be auto-applied
+extend-unsafe-fixes = ["ALL"]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = ["auto_tune_vllm"]
+force-single-line = false
+combine-as-imports = true
 
 [tool.basedpyright]
 pythonVersion = "3.10"
 typeCheckingMode = "recommended"
 reportUnusedVariable = true
 reportUnusedImport = true
+# Ignore missing imports for optional dependencies
+extraPaths = []
+autoImportModules = [
+    "optuna",
+    "optuna_integration",
+    "ray",
+    "vllm",
+    "guidellm",
+    "psycopg2",
+    "botorch",
+    "gpytorch",
+]
+reportMissingTypeStubs = false
+pythonPlatform = "All"
+include = ["auto_tune_vllm/**/*.py", "examples/**/*.py", "scripts/**/*.py"]
+exclude = [
+    "**/__pycache__",
+    "**/.venv",
+    "**/venv",
+    "**/build",
+    "**/dist",
+]
+reportUnknownParameterType = false
+reportUnknownMemberType = false
+reportMissingParameterType = false

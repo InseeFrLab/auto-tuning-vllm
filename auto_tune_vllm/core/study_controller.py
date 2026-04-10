@@ -617,10 +617,7 @@ class StudyController:
         self, remaining_trials: int, max_concurrent_trials: float
     ):
         """Submit new trials up to limits."""
-        while (
-            remaining_trials > 0
-            and len(self.active_trials) < max_concurrent_trials
-        ):
+        while remaining_trials > 0 and len(self.active_trials) < max_concurrent_trials:
             trial = self.study.ask()
 
             # Check if these exact parameters have already been tried and failed

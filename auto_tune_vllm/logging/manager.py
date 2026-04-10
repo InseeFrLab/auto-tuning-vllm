@@ -53,7 +53,7 @@ class CentralizedLogger:
 
                     # Create indexes for efficient querying
                     cur.execute("""
-                        CREATE INDEX IF NOT EXISTS idx_trial_logs_study_trial 
+                        CREATE INDEX IF NOT EXISTS idx_trial_logs_study_trial
                         ON trial_logs (study_name, trial_id)
                     """)
 
@@ -138,8 +138,8 @@ class CentralizedLogger:
                 with conn.cursor() as cur:
                     cur.execute(
                         """
-                        DELETE FROM trial_logs 
-                        WHERE study_id = %s 
+                        DELETE FROM trial_logs
+                        WHERE study_id = %s
                           AND timestamp < NOW() - make_interval(days => %s)
                         """,
                         (self.study_id, int(days_to_keep)),
@@ -171,7 +171,7 @@ class LogStreamer:
                     # Check if table exists
                     cur.execute("""
                         SELECT EXISTS (
-                            SELECT FROM information_schema.tables 
+                            SELECT FROM information_schema.tables
                             WHERE table_name = 'trial_logs'
                         )
                     """)
@@ -198,7 +198,7 @@ class LogStreamer:
 
                         # Create indexes for efficient querying
                         cur.execute("""
-                            CREATE INDEX idx_trial_logs_study_trial 
+                            CREATE INDEX idx_trial_logs_study_trial
                             ON trial_logs (study_name, trial_id)
                         """)
 
@@ -284,7 +284,7 @@ class LogStreamer:
                 with conn.cursor() as cur:
                     query = """
                         SELECT id, timestamp, level, component, message, worker_node
-                        FROM trial_logs 
+                        FROM trial_logs
                         WHERE study_name = %s AND trial_id = %s
                     """
                     params = [self.study_name, trial_id]
@@ -315,7 +315,7 @@ class LogStreamer:
                 with conn.cursor() as cur:
                     query = """
                         SELECT id, timestamp, level, component, message, worker_node
-                        FROM trial_logs 
+                        FROM trial_logs
                         WHERE study_name = %s AND trial_id = %s AND id > %s
                     """
                     params = [self.study_name, trial_id, last_seen_id]
@@ -394,7 +394,7 @@ class LogStreamer:
                     cur.execute(
                         """
                         SELECT id, timestamp, level, trial_id, component, message, worker_node
-                        FROM trial_logs 
+                        FROM trial_logs
                         WHERE study_name = %s
                         ORDER BY id DESC LIMIT %s
                     """,  # noqa: E501
@@ -418,7 +418,7 @@ class LogStreamer:
                     cur.execute(
                         """
                         SELECT id, timestamp, level, trial_id, component, message, worker_node
-                        FROM trial_logs 
+                        FROM trial_logs
                         WHERE study_name = %s AND id > %s
                         ORDER BY id ASC LIMIT 100
                     """,  # noqa: E501

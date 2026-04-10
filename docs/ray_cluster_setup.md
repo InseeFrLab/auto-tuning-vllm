@@ -133,7 +133,7 @@ ray start --address=<head_node_ip>:10001
 
 ### Issue: Ray workers using wrong Python installation
 
-**Symptoms**: 
+**Symptoms**:
 - ImportError for packages that are installed in your environment
 - Workers can't find vLLM or other dependencies
 - Different Python versions on workers vs head node
@@ -236,7 +236,7 @@ Configure Ray to properly utilize GPUs:
 # In your study config or when creating backend
 backend = RayExecutionBackend({
     "num_gpus": 1,        # 1 GPU per trial
-    "num_cpus": 4,        # 4 CPUs per trial  
+    "num_cpus": 4,        # 4 CPUs per trial
     "memory": 8_000_000_000  # 8GB RAM per trial
 })
 ```
@@ -269,7 +269,7 @@ Set these on all nodes for consistent behavior:
 export CUDA_VISIBLE_DEVICES=0,1,2,3  # Available GPUs
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 
-# Ray settings  
+# Ray settings
 export RAY_TMPDIR=/tmp/ray  # Temp directory
 export RAY_ADDRESS=<head_node_ip>:10001  # For workers
 ```

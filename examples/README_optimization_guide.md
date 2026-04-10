@@ -292,8 +292,7 @@ More complex parameter spaces need more trials. If you have many parameters enab
 ## Examples in This Repository
 
 - `study_config_local_exec.yaml`: High-throughput optimization
-- `study_config_no_postgres.yaml`: Low-latency optimization  
+- `study_config_no_postgres.yaml`: Low-latency optimization
 - `study_config_minimal.yaml`: Balanced multi-objective
 - `study_config.yaml`: Advanced throughput vs TTFT optimization
 - `study_config_optimization_examples.yaml`: Comprehensive examples
-
