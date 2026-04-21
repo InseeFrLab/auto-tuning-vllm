@@ -28,8 +28,8 @@ All nodes must have:
 **On every node** (head and workers):
 
 ```bash
-# Install auto-tune-vllm (includes all dependencies)
-pip install auto-tune-vllm
+# Install auto-tune-vllm with Ray support
+pip install "auto-tune-vllm[ray]"
 
 # Verify installation
 auto-tune-vllm check-env
@@ -124,7 +124,7 @@ auto-tune-vllm optimize --config study.yaml --backend ray
 **Solution**:
 ```bash
 # On the problematic worker node
-pip install auto-tune-vllm
+pip install "auto-tune-vllm[ray]"
 
 # Restart the worker
 ray stop
@@ -163,7 +163,7 @@ ls /path/to/venv/bin/python*
 # If missing, recreate the virtual environment
 python -m venv /path/to/venv
 source /path/to/venv/bin/activate
-pip install auto-tune-vllm
+pip install "auto-tune-vllm[ray]"
 
 # Use explicit Python path instead
 auto-tune-vllm optimize --config study.yaml --backend ray --python-executable /path/to/venv/bin/python

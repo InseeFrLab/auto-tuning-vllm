@@ -119,8 +119,8 @@ class BaseTrialController(TrialController):
             raise RuntimeError(
                 f"Missing required packages on Ray worker node:\n  - {missing_list}\n\n"
                 f"Ray worker nodes must have the same Python environment as the head node.\n"  # noqa: E501
-                f"Install auto-tune-vllm on all Ray cluster nodes:\n"
-                f"  pip install auto-tune-vllm"
+                f"Install auto-tune-vllm with Ray support on all Ray cluster nodes:\n"
+                f"  pip install 'auto-tune-vllm[ray]'"
             )
 
         # Check if commands are available in PATH

@@ -112,10 +112,10 @@ def _display_log_viewing_instructions(config: StudyConfig):
 def optimize_command(
     config: str = typer.Option(..., "--config", "-c", help="Study configuration file"),
     backend: str = typer.Option(
-        "ray",
+        "local",
         "--backend",
         "-b",
-        help="Execution backend: 'ray' or 'local' (single worker, no Ray)",
+        help="Execution backend: 'local' (default) or 'ray'",
     ),
     n_trials: Optional[int] = typer.Option(
         None, "--trials", "-n", help="Number of trials (overrides config)"
@@ -813,10 +813,10 @@ def view_file_logs_command(
 def resume_command(
     config: str = typer.Option(..., "--config", "-c", help="Study configuration file"),
     backend: str = typer.Option(
-        "ray",
+        "local",
         "--backend",
         "-b",
-        help="Execution backend: 'ray' or 'local' (single worker, no Ray)",
+        help="Execution backend: 'local' (default) or 'ray'",
     ),
     n_trials: Optional[int] = typer.Option(
         None, "--trials", "-n", help="Number of additional trials to run"
@@ -1248,6 +1248,7 @@ def _check_ray_cluster_environment():
     """Check environment on all Ray cluster nodes."""
     try:
         import ray
+
         if not ray.is_initialized():
             console.print("[yellow]Initializing Ray connection...[/yellow]")
             ray.init(address="auto")
@@ -1366,6 +1367,10 @@ def main():
         console.print("\nUse --help for available commands")
         console.print("\nQuick start:")
         console.print("  auto-tune-vllm optimize --config study.yaml")
+        console.print(
+            "  auto-tune-vllm optimize --config study.yaml --backend ray "
+            "--venv-path ./venv"
+        )
         console.print(
             "  auto-tune-vllm logs --study-name my_study --database-url postgresql://..."
         )

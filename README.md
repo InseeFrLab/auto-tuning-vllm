@@ -3,7 +3,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-A hyperparameter optimization framework for vLLM serving, built with Optuna.
+A hyperparameter optimization framework for vLLM serving with local and optional Ray execution backends, built with Optuna.
 
 > **Note: This is a maintained fork**
 >
@@ -20,7 +20,6 @@ This fork was created to adapt the original framework to our specific requiremen
 - **Active maintenance** for our production use cases (dependency updates, bug fixes)
 - **Feature expansion** as needed for our workloads (additional inference engines, benchmark tools)
 
-
 ## Features
 
 - 🎯 **Flexible Backends**: Run locally (default) or optionally on Ray clusters
@@ -34,6 +33,8 @@ This fork was created to adapt the original framework to our specific requiremen
 For a detailed starter guide, see the [Quick Start Guide](docs/quick_start.md).
 
 ### Installation
+
+Install the base package for local execution. Add the optional `ray` extra only if you want distributed execution.
 
 ```bash
 # Clone the maintained fork
@@ -53,8 +54,11 @@ pip install -e ".[postgresql]"
 ### Basic Usage
 
 ```bash
-# Run optimization study with local execution (default)
-auto-tune-vllm optimize --config config.yaml
+# Run optimization study locally (default backend)
+auto-tune-vllm optimize --config config.yaml --max-concurrent-trials 2
+
+# Run optimization study on Ray
+auto-tune-vllm optimize --config config.yaml --backend ray --venv-path ./venv --max-concurrent-trials 2
 
 # Resume interrupted study
 auto-tune-vllm resume --study-name study_35884
@@ -74,6 +78,8 @@ auto-tune-vllm logs --study-name study_35884
 - Python 3.10+
 - NVIDIA GPU with CUDA support (for running vLLM)
 - SQLite (included) or PostgreSQL (optional)
+
+Core dependencies are installed with `pip install -e .`. Ray is optional and available via `pip install -e ".[ray]"`.
 
 ## Roadmap
 
