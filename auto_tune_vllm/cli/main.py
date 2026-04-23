@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-import ray
 import typer
 from rich.console import Console
 from rich.logging import RichHandler
@@ -16,7 +15,7 @@ from rich.table import Table
 from ..core.config import StudyConfig
 from ..core.storage.postgres_utils import clear_study_data, verify_database_connection
 from ..core.study_controller import StudyController
-from ..execution.backends import RayExecutionBackend
+from ..execution.backends import LocalExecutionBackend, RayExecutionBackend
 from ..logging.manager import CentralizedLogger, LogStreamer
 
 # Setup rich console and app
@@ -113,10 +112,10 @@ def _display_log_viewing_instructions(config: StudyConfig):
 def optimize_command(
     config: str = typer.Option(..., "--config", "-c", help="Study configuration file"),
     backend: str = typer.Option(
-        "ray",
+        "local",
         "--backend",
         "-b",
-        help="Execution backend: 'ray' (only supported option)",
+        help="Execution backend: 'local' (default) or 'ray'",
     ),
     n_trials: Optional[int] = typer.Option(
         None, "--trials", "-n", help="Number of trials (overrides config)"
@@ -150,27 +149,32 @@ def optimize_command(
     """Run optimization study."""
     setup_logging(verbose)
 
-    # Validate Python environment options (exactly one should be specified)
+    # Validate Python environment options for Ray backend (exactly one required)
     python_env_options = [python_executable, venv_path, conda_env]
     specified_options = [opt for opt in python_env_options if opt is not None]
 
-    if len(specified_options) == 0:
-        console.print(
-            "[bold red]"
-            "Error: At least one Python environment option must be specified"
-            "[/bold red]"
-        )
-        console.print("Choose one of: --python-executable, --venv-path, or --conda-env")
-        raise typer.Exit(1)
-
-    if len(specified_options) > 1:
-        console.print(
-            "[bold red]"
-            "Error: Only one Python environment option can be specified at a time"
-            "[/bold red]"
-        )
-        console.print("Choose one of: --python-executable, --venv-path, or --conda-env")
-        raise typer.Exit(1)
+    if backend.lower() == "ray":
+        if len(specified_options) == 0:
+            console.print(
+                "[bold red]"
+                "Error: At least one Python environment option must be specified "
+                "for Ray backend"
+                "[/bold red]"
+            )
+            console.print(
+                "Choose one of: --python-executable, --venv-path, or --conda-env"
+            )
+            raise typer.Exit(1)
+        if len(specified_options) > 1:
+            console.print(
+                "[bold red]"
+                "Error: Only one Python environment option can be specified at a time"
+                "[/bold red]"
+            )
+            console.print(
+                "Choose one of: --python-executable, --venv-path, or --conda-env"
+            )
+            raise typer.Exit(1)
 
     console.print("[bold green]Starting auto-tune-vllm optimization[/bold green]")
     console.print(f"Configuration: {config}")
@@ -187,6 +191,9 @@ def optimize_command(
         console.print(
             "[yellow]No Python environment specified, using auto-detection[/yellow]"
         )
+
+    if backend.lower() == "local":
+        console.print("[blue]Using local execution (single worker, no Ray)[/blue]")
 
     try:
         # Load configuration
@@ -222,37 +229,35 @@ def optimize_command(
                     "Ray auto-start disabled - requires existing cluster"
                     "[/yellow]"
                 )
+        elif backend.lower() == "local":
+            max_local = (
+                max_concurrent_trials
+                or study_config.optimization.max_concurrent_trials
+                or 1
+            )
+            execution_backend = LocalExecutionBackend(max_concurrent=max_local)
         else:
-            console.print(
-                "[bold red]"
-                "Error: Local execution backend is not supported in this version."
-                "[/bold red]"
-            )
-            console.print(
-                "[bold red]Only Ray distributed execution is available.[/bold red]"
-            )
-            console.print(
-                "[blue]Use --backend ray (default) or set up a Ray cluster.[/blue]"
-            )
-            console.print(
-                "[blue]See docs/ray_cluster_setup.md for Ray setup instructions.[/blue]"
-            )
+            console.print(f"[bold red]Error: Unknown backend '{backend}'.[/bold red]")
+            console.print("[blue]Use --backend ray or --backend local.[/blue]")
             raise typer.Exit(1)
 
         # Run optimization
-        # Use CLI value or fall back to YAML config
+        # Use CLI value or fall back to YAML config (default 1 for local backend)
         final_max_concurrent_trials = (
             max_concurrent_trials or study_config.optimization.max_concurrent_trials
         )
         if final_max_concurrent_trials is None:
-            console.print(
-                "[bold red]"
-                "❌ --max-concurrent-trials is required "
-                "(or set optimization.max_concurrent_trials in the config)"
-                "[/bold red]"
-            )
-            console.print("YAML:\n  optimization:\n    max_concurrent_trials: 2")
-            raise typer.Exit(1)
+            if backend.lower() == "local":
+                final_max_concurrent_trials = 1
+            else:
+                console.print(
+                    "[bold red]"
+                    "❌ --max-concurrent-trials is required "
+                    "(or set optimization.max_concurrent_trials in the config)"
+                    "[/bold red]"
+                )
+                console.print("YAML:\n  optimization:\n    max_concurrent_trials: 2")
+                raise typer.Exit(1)
         if final_max_concurrent_trials < 1:
             console.print(
                 "[bold red]❌ --max-concurrent-trials must be >= 1[/bold red]"
@@ -808,10 +813,10 @@ def view_file_logs_command(
 def resume_command(
     config: str = typer.Option(..., "--config", "-c", help="Study configuration file"),
     backend: str = typer.Option(
-        "ray",
+        "local",
         "--backend",
         "-b",
-        help="Execution backend: 'ray' (only supported option)",
+        help="Execution backend: 'local' (default) or 'ray'",
     ),
     n_trials: Optional[int] = typer.Option(
         None, "--trials", "-n", help="Number of additional trials to run"
@@ -847,27 +852,32 @@ def resume_command(
     """Resume an existing optimization study. Fails if the study doesn't exist."""
     setup_logging(verbose)
 
-    # Validate Python environment options (exactly one should be specified)
+    # Validate Python environment options for Ray backend (exactly one required)
     python_env_options = [python_executable, venv_path, conda_env]
     specified_options = [opt for opt in python_env_options if opt is not None]
 
-    if len(specified_options) == 0:
-        console.print(
-            "[bold red]"
-            "Error: At least one Python environment option must be specified"
-            "[/bold red]"
-        )
-        console.print("Choose one of: --python-executable, --venv-path, or --conda-env")
-        raise typer.Exit(1)
-
-    if len(specified_options) > 1:
-        console.print(
-            "[bold red]"
-            "Error: Only one Python environment option can be specified at a time"
-            "[/bold red]"
-        )
-        console.print("Choose one of: --python-executable, --venv-path, or --conda-env")
-        raise typer.Exit(1)
+    if backend.lower() == "ray":
+        if len(specified_options) == 0:
+            console.print(
+                "[bold red]"
+                "Error: At least one Python environment option must be specified "
+                "for Ray backend"
+                "[/bold red]"
+            )
+            console.print(
+                "Choose one of: --python-executable, --venv-path, or --conda-env"
+            )
+            raise typer.Exit(1)
+        if len(specified_options) > 1:
+            console.print(
+                "[bold red]"
+                "Error: Only one Python environment option can be specified at a time"
+                "[/bold red]"
+            )
+            console.print(
+                "Choose one of: --python-executable, --venv-path, or --conda-env"
+            )
+            raise typer.Exit(1)
 
     console.print("[bold blue]Resuming auto-tune-vllm study[/bold blue]")
 
@@ -896,46 +906,45 @@ def resume_command(
                     "Ray auto-start disabled - requires existing cluster"
                     "[/yellow]"
                 )
-
+        elif backend.lower() == "local":
+            max_local = (
+                max_concurrent_trials
+                or study_config.optimization.max_concurrent_trials
+                or 1
+            )
+            execution_backend = LocalExecutionBackend(max_concurrent=max_local)
         else:
-            console.print(
-                "[bold red]"
-                "Error: Local execution backend is not supported in this version."
-                "[/bold red]"
-            )
-            console.print(
-                "[bold red]Only Ray distributed execution is available.[/bold red]"
-            )
-            console.print(
-                "[blue]Use --backend ray (default) or set up a Ray cluster.[/blue]"
-            )
-            console.print(
-                "[blue]See docs/ray_cluster_setup.md for Ray setup instructions.[/blue]"
-            )
+            console.print(f"[bold red]Error: Unknown backend '{backend}'.[/bold red]")
+            console.print("[blue]Use --backend ray or --backend local.[/blue]")
             raise typer.Exit(1)
 
         # Resume study
-        # Use CLI value or fall back to YAML config
+        # Use CLI value or fall back to YAML config (default 1 for local backend)
         final_max_concurrent_trials = (
             max_concurrent_trials or study_config.optimization.max_concurrent_trials
         )
         if n_trials or n_total_trials:  # Only required if we will run new trials
             if final_max_concurrent_trials is None:
-                console.print(
-                    "[bold red]"
-                    "❌ --max-concurrent-trials is required to resume "
-                    "with new trials"
-                    "[/bold red]"
-                )
-                console.print(
-                    "Set CLI flag or config: optimization.max_concurrent_trials"
-                )
-                raise typer.Exit(1)
+                if backend.lower() == "local":
+                    final_max_concurrent_trials = 1
+                else:
+                    console.print(
+                        "[bold red]"
+                        "❌ --max-concurrent-trials is required to resume "
+                        "with new trials"
+                        "[/bold red]"
+                    )
+                    console.print(
+                        "Set CLI flag or config: optimization.max_concurrent_trials"
+                    )
+                    raise typer.Exit(1)
             if final_max_concurrent_trials < 1:
                 console.print(
                     "[bold red]❌ --max-concurrent-trials must be >= 1[/bold red]"
                 )
                 raise typer.Exit(1)
+        if final_max_concurrent_trials is None and backend.lower() == "local":
+            final_max_concurrent_trials = 1
         resume_study_sync(
             execution_backend,
             study_config,
@@ -1238,6 +1247,8 @@ def check_environment_command(
 def _check_ray_cluster_environment():
     """Check environment on all Ray cluster nodes."""
     try:
+        import ray
+
         if not ray.is_initialized():
             console.print("[yellow]Initializing Ray connection...[/yellow]")
             ray.init(address="auto")
@@ -1356,6 +1367,10 @@ def main():
         console.print("\nUse --help for available commands")
         console.print("\nQuick start:")
         console.print("  auto-tune-vllm optimize --config study.yaml")
+        console.print(
+            "  auto-tune-vllm optimize --config study.yaml --backend ray "
+            "--venv-path ./venv"
+        )
         console.print(
             "  auto-tune-vllm logs --study-name my_study --database-url postgresql://..."
         )

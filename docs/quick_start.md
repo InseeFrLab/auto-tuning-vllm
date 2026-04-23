@@ -1,6 +1,6 @@
 ## Quick Start Guide
 
-The steps below help you set up the environment, validate your configuration, and launch an optimization study with Ray.
+The steps below help you set up the environment, validate your configuration, and launch an optimization study. Local execution works out of the box; Ray support is optional.
 
 ### Prerequisites
 
@@ -27,7 +27,7 @@ source venv/bin/activate
 
 ### 2) Install the Project (editable)
 
-Install in editable mode so the CLI is available and source edits are reflected immediately.
+Install in editable mode so the CLI is available and source edits are reflected immediately. This base install supports local execution. Install the optional `ray` extra only if you want distributed execution.
 
 ```bash
 # Using uv
@@ -35,6 +35,10 @@ uv pip install -e .
 
 # OR: pip
 pip install -e .
+
+# Optional: add Ray support for distributed execution
+uv pip install -e ".[ray]"
+# OR: pip install -e ".[ray]"
 ```
 
 Verify the CLI is on PATH:
@@ -135,7 +139,19 @@ Always validate before launching optimization:
 auto-tune-vllm validate --config examples/study_config_local_exec.yaml
 ```
 
-### 5) Run Optimization (Ray)
+### 5) Run Optimization
+
+Run locally with the default backend:
+
+```bash
+auto-tune-vllm optimize \
+  --config examples/study_config_local_exec.yaml \
+  --max-concurrent-trials 1
+```
+
+Use `--backend ray` only if you installed `auto-tune-vllm[ray]`.
+
+### 6) Run Optimization on Ray
 
 Ray workers must run in a Python environment you control. Provide one of:
 - `--venv-path /absolute/path/to/venv`
@@ -147,6 +163,7 @@ Use an existing Ray cluster (recommended if one is already running):
 ```bash
 auto-tune-vllm optimize \
   --config examples/study_config_local_exec.yaml \
+  --backend ray \
   --venv-path "$(pwd)/venv" \
   --max-concurrent-trials <count>
 ```
@@ -156,6 +173,7 @@ Start a new Ray head locally (when no cluster is running):
 ```bash
 auto-tune-vllm optimize \
   --config examples/study_config_local_exec.yaml \
+  --backend ray \
   --venv-path "$(pwd)/venv" \
   --max-concurrent-trials <count> \
   --start-ray-head
@@ -168,7 +186,7 @@ Notes:
   ray start --head --dashboard-host=0.0.0.0
   ```
 
-### 6) Monitor Logs
+### 7) Monitor Logs
 
 Open a separate terminal. After optimization starts, the CLI prints an exact logs command. For file-based logging:
 
@@ -197,12 +215,14 @@ You can now explore optimization history, parameter importance, and parallel coo
 
 ### Troubleshooting
 
-- Error: "At least one Python environment option must be specified"
+- Error: "At least one Python environment option must be specified for Ray backend"
+  - This only applies when using `--backend ray`.
   - Provide one of `--venv-path`, `--python-executable`, or `--conda-env`.
   - Example:
     ```bash
     auto-tune-vllm optimize \
       --config examples/study_config_local_exec.yaml \
+      --backend ray \
       --venv-path "$(pwd)/venv"
     ```
 

@@ -73,7 +73,7 @@ INFO: Successfully stopped Ray head
 ### Development Environment
 ```bash
 # Quick start for local development (auto-start enabled by default)
-auto-tune-vllm optimize --config dev-study.yaml
+auto-tune-vllm optimize --config dev-study.yaml --backend ray
 ```
 
 ### Single Machine Deployment
@@ -85,7 +85,7 @@ auto-tune-vllm optimize --config production.yaml --backend ray
 ### CI/CD Pipelines
 ```bash
 # Automated testing with ephemeral Ray cluster (auto-start enabled by default)
-auto-tune-vllm optimize --config test-study.yaml --trials 5
+auto-tune-vllm optimize --config test-study.yaml --backend ray --trials 5
 ```
 
 ## Considerations
