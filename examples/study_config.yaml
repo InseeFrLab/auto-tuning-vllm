@@ -1,7 +1,6 @@
 # Example study configuration
 study:
   name: "vllm_optimization_example_1"
-  database_url: "postgresql://tuner-user:password@localhost:5432/optuna"
 
 optimization:
   # Advanced multi-objective: Optimize throughput vs Time-To-First-Token
@@ -14,19 +13,17 @@ optimization:
       direction: "minimize"
       percentile: "p95"  # Focus on worst-case TTFT
   sampler: "nsga2"  # Best for multi-objective optimization
-  n_trials: 100
+  n_trials: 11
 
 benchmark:
   benchmark_type: "guidellm"
-  model: "Qwen/Qwen3-30B-A3B-FP8"
+  model: "Qwen/Qwen2.5-0.5B-Instruct"
   max_seconds: 300
   dataset: null  # Use synthetic data
-  prompt_tokens: 1000
-  output_tokens: 1000
+  prompt_tokens: 500
+  output_tokens: 500
 
 logging:
-  # At least one of the following must be provided and must be valid
-  database_url: "postgresql://tuner-user:password@localhost:5432/tuner-user" # Optional database url
   file_path: "/tmp/auto-tune-vllm-logs" # Optional local file path
   nfs_path: null  # Optional NFS mount
   log_level: "INFO"
@@ -34,17 +31,10 @@ logging:
 parameters:
   max_num_batched_tokens:
     enabled: true
-    # Uses schema defaults
+    options: [1024, 2048, 10000]
 
   gpu_memory_utilization:
     enabled: true
     min: 0.9
-    max: 0.95
+    max: 0.92
     step: 0.01
-
-  kv_cache_dtype:
-    enabled: true
-    options: ["auto", "fp8"]
-
-  enable_cuda_graphs:
-    enabled: false
