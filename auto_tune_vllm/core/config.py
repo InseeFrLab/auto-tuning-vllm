@@ -7,8 +7,10 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-
+import ast
 import yaml
+from itertools import product
+
 
 from auto_tune_vllm.core.constraint import Constraint
 
@@ -30,8 +32,31 @@ class ObjectiveConfig:
     direction: str  # "maximize" or "minimize"
     percentile: str = "median"  # "median", "p50", "p95", "p90", "p99", "mean"
 
-    def __post_init__(self):
-        """Validate objective configuration."""
+    valid_metrics = {
+            "output_tokens_per_second",
+            "request_latency",
+            "time_to_first_token_ms",
+            "inter_token_latency_ms",
+            "requests_per_second",
+        }
+    valid_directions = {"maximize", "minimize"}
+    valid_percentiles = {"median", "p50", "p95", "p90", "p99", "mean"}
+    valid_metrics_combined = {f"{metric}_{percentile}" for metric, percentile in product(valid_metrics, valid_percentiles)}
+
+    def _break_down_objectives(self) -> list[str]:
+        """
+        Parse an arithmetic expression and return the ordered list of valid
+        metric names referenced in it (deduplicated, preserving first-seen order).
+
+        Example:
+            "output_tokens_per_second / (requests_per_second + 1)"
+            -> ["output_tokens_per_second", "requests_per_second"]
+
+        Raises:
+            ValueError: if the expression is syntactically invalid, or if it
+                references an identifier that is not in the allowed metric set.
+        """
+
         valid_metrics = {
             "output_tokens_per_second",
             "request_latency",
@@ -39,22 +64,49 @@ class ObjectiveConfig:
             "inter_token_latency_ms",
             "requests_per_second",
         }
-        valid_directions = {"maximize", "minimize"}
-        valid_percentiles = {"median", "p50", "p95", "p90", "p99", "mean"}
 
-        if self.metric not in valid_metrics:
+        try:
+            tree = ast.parse(self.metric, mode="eval")
+        except SyntaxError as e:
             raise ValueError(
-                f"Invalid metric '{self.metric}'. Valid options: {valid_metrics}"
-            )
-        if self.direction not in valid_directions:
+                f"Invalid metric expression {self.metric!r}: {e}"
+            ) from e
+
+        metrics: list[str] = []
+        seen: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                name = node.id
+                if name not in self.valid_metrics_combined:
+                    raise ValueError(
+                        f"Unknown metric {name!r} in expression {self.metric!r}. "
+                        f"Valid metrics: {sorted(self.valid_metrics_combined)}"
+                    )
+                if name not in seen:
+                    seen.add(name)
+                    metrics.append(name)
+
+        return metrics
+
+    def __post_init__(self):
+        """Validate objective configuration."""
+
+        breaks_metrics = self._break_down_objectives(self.metric)
+        for m in breaks_metrics :
+            if m not in self.valid_metrics_combined:
+                # TO DO : Modify the controller to check that metric is a combination of valid metrics
+                raise ValueError(
+                    f"Invalid metric '{self.metric}'. Valid options: {self.valid_metrics_combined}"
+                )
+        if self.direction not in self.valid_directions:
             raise ValueError(
                 f"Invalid direction '{self.direction}'. "
-                f"Valid options: {valid_directions}"
+                f"Valid options: {self.valid_directions}"
             )
-        if self.percentile not in valid_percentiles:
+        if self.percentile not in self.valid_percentiles:
             raise ValueError(
                 f"Invalid percentile '{self.percentile}'. "
-                f"Valid options: {valid_percentiles}"
+                f"Valid options: {self.valid_percentiles}"
             )
 
 
@@ -223,17 +275,25 @@ class OptimizationConfig:
         else:
             return []
 
-    def get_metric_key(self, objective_index: int = 0) -> str:
+
+    
+
+    def get_metrics_keys(self, objective_index: int = 0) -> List[str]:
         """Get the metric key for extracting values from benchmark results."""
         assert self.objectives is not None
         if objective_index >= len(self.objectives):
             raise IndexError(f"Objective index {objective_index} out of range")
-
+        
+        objs = []
         obj = self.objectives[objective_index]
-        if obj.percentile == "median":
-            return obj.metric
-        else:
-            return f"{obj.metric}_{obj.percentile}"
+        metrics = self._break_down_objectives(obj.metric)
+        for m in metrics:
+            if  m.endswith("_median") :
+                 objs.append(m[: -len("_median")])
+            else:
+                objs.append(m)
+
+        return objs
 
 
 @dataclass
