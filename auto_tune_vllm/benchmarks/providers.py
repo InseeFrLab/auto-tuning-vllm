@@ -210,6 +210,10 @@ class GuideLLMBenchmark(BenchmarkProvider):
         if not (model_url.startswith("http://") or model_url.startswith("https://")):
             raise ValueError(f"Invalid model_url: {model_url!r} (expected http/https)")
 
+        env = os.environ.copy()
+        env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
+        self._validate_guidellm_cli(env)
+
         # Run GuideLLM
         self._logger.info(f"Running: {' '.join(cmd)}")
         self._logger.info(f"Results will be saved to: {self._results_file}")
@@ -217,9 +221,6 @@ class GuideLLMBenchmark(BenchmarkProvider):
         # Use Popen so we can terminate if vLLM dies
         # start_new_session=True puts it in its own process group for clean
         # termination
-        env = os.environ.copy()
-        env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
-
         self._process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -244,6 +245,30 @@ class GuideLLMBenchmark(BenchmarkProvider):
             self._process_pgid = None
 
         return self._process
+
+    def _validate_guidellm_cli(self, env: dict[str, str]) -> None:
+        """Fail fast if GuideLLM cannot start due to dependency/import issues."""
+        try:
+            result = subprocess.run(
+                ["guidellm", "benchmark", "--help"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                env=env,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                "GuideLLM CLI validation timed out while running "
+                "'guidellm benchmark --help'."
+            ) from exc
+
+        if result.returncode != 0:
+            error_output = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(
+                "GuideLLM CLI validation failed while running "
+                f"'guidellm benchmark --help' (exit code {result.returncode}). "
+                f"Output: {error_output}"
+            )
 
     def parse_results(self) -> Dict[str, Any]:
         """
