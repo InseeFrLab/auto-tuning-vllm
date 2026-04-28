@@ -26,11 +26,18 @@ from .parameters import (
 
 @dataclass
 class ObjectiveConfig:
-    """Configuration for a single optimization objective."""
+    """Configuration for a single optimization objective.
 
-    metric: str  # "output_tokens_per_second", "request_latency", etc.
+    `metric` is an arithmetic expression over benchmark identifiers in the form
+    `<metric>_<percentile>` (e.g. "request_latency_p95",
+    "output_tokens_per_second_mean / requests_per_second_median").
+
+    There is no separate percentile field: the percentile is part of each
+    identifier in the expression. When choosing a default, prefer "_median".
+    """
+
+    metric: str
     direction: str  # "maximize" or "minimize"
-    percentile: str = "median"  # "median", "p50", "p95", "p90", "p99", "mean"
 
     valid_metrics = {
             "output_tokens_per_second",
@@ -103,11 +110,6 @@ class ObjectiveConfig:
                 f"Invalid direction '{self.direction}'. "
                 f"Valid options: {self.valid_directions}"
             )
-        if self.percentile not in self.valid_percentiles:
-            raise ValueError(
-                f"Invalid percentile '{self.percentile}'. "
-                f"Valid options: {self.valid_percentiles}"
-            )
 
 
 @dataclass
@@ -157,28 +159,28 @@ class OptimizationConfig:
             self.approach = "single_objective"
             self.objectives = [
                 ObjectiveConfig(
-                    metric="output_tokens_per_second",
+                    metric="output_tokens_per_second_mean",
                     direction="maximize",
-                    percentile="mean",
                 )
             ]
         elif self.preset == "low_latency":
             self.approach = "single_objective"
             self.objectives = [
                 ObjectiveConfig(
-                    metric="request_latency", direction="minimize", percentile="p95"
+                    metric="request_latency_p95",
+                    direction="minimize",
                 )
             ]
         elif self.preset == "balanced":
             self.approach = "multi_objective"
             self.objectives = [
                 ObjectiveConfig(
-                    metric="output_tokens_per_second",
+                    metric="output_tokens_per_second_mean",
                     direction="maximize",
-                    percentile="mean",
                 ),
                 ObjectiveConfig(
-                    metric="request_latency", direction="minimize", percentile="median"
+                    metric="request_latency_median",
+                    direction="minimize",
                 ),
             ]
         else:
@@ -217,18 +219,16 @@ class OptimizationConfig:
                 # Default to maximizing throughput
                 self.objectives = [
                     ObjectiveConfig(
-                        metric="output_tokens_per_second",
+                        metric="output_tokens_per_second_median",
                         direction="maximize",
-                        percentile="median",
                     )
                 ]
             elif self.objective == "minimize":
                 # Default to minimizing latency
                 self.objectives = [
                     ObjectiveConfig(
-                        metric="request_latency",
+                        metric="request_latency_median",
                         direction="minimize",
-                        percentile="median",
                     )
                 ]
             else:
@@ -242,12 +242,12 @@ class OptimizationConfig:
             # Default to throughput vs latency
             self.objectives = [
                 ObjectiveConfig(
-                    metric="output_tokens_per_second",
+                    metric="output_tokens_per_second_median",
                     direction="maximize",
-                    percentile="median",
                 ),
                 ObjectiveConfig(
-                    metric="request_latency", direction="minimize", percentile="median"
+                    metric="request_latency_median",
+                    direction="minimize",
                 ),
             ]
 
@@ -256,9 +256,8 @@ class OptimizationConfig:
         self.approach = "single_objective"
         self.objectives = [
             ObjectiveConfig(
-                metric="output_tokens_per_second",
+                metric="output_tokens_per_second_mean",
                 direction="maximize",
-                percentile="mean",
             )
         ]
 
