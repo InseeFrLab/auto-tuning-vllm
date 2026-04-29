@@ -63,15 +63,6 @@ class ObjectiveConfig:
             ValueError: if the expression is syntactically invalid, or if it
                 references an identifier that is not in the allowed metric set.
         """
-
-        valid_metrics = {
-            "output_tokens_per_second",
-            "request_latency",
-            "time_to_first_token_ms",
-            "inter_token_latency_ms",
-            "requests_per_second",
-        }
-
         try:
             tree = ast.parse(self.metric, mode="eval")
         except SyntaxError as e:
@@ -98,10 +89,9 @@ class ObjectiveConfig:
     def __post_init__(self):
         """Validate objective configuration."""
 
-        breaks_metrics = self._break_down_objectives(self.metric)
-        for m in breaks_metrics :
+        breaks_metrics = self._break_down_objectives()
+        for m in breaks_metrics:
             if m not in self.valid_metrics_combined:
-                # TO DO : Modify the controller to check that metric is a combination of valid metrics
                 raise ValueError(
                     f"Invalid metric '{self.metric}'. Valid options: {self.valid_metrics_combined}"
                 )
@@ -285,10 +275,10 @@ class OptimizationConfig:
         
         objs = []
         obj = self.objectives[objective_index]
-        metrics = self._break_down_objectives(obj.metric)
+        metrics = obj._break_down_objectives()
         for m in metrics:
-            if  m.endswith("_median") :
-                 objs.append(m[: -len("_median")])
+            if m.endswith("_median"):
+                objs.append(m[: -len("_median")])
             else:
                 objs.append(m)
 
