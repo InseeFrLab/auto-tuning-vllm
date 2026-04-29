@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 import logging
+import operator
 import os
 import signal
 import subprocess
@@ -10,9 +12,6 @@ import time
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import Optional
-import ast
-import operator
-
 
 try:
     import ray
@@ -1132,7 +1131,7 @@ class BaseTrialController(TrialController):
             raise RuntimeError(
                 f"vLLM server health check failed: {self._health_check_failure_reason}"
             )
-        
+
     def evaluate_metric_expression(self,
         expression: str,
         metric_values: dict[str, float],

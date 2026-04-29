@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import ast
 import os
 import re
 from dataclasses import dataclass, field
+from itertools import product
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-import ast
-import yaml
-from itertools import product
 
+import yaml
 
 from auto_tune_vllm.core.constraint import Constraint
 
@@ -264,15 +264,12 @@ class OptimizationConfig:
         else:
             return []
 
-
-    
-
     def get_metrics_keys(self, objective_index: int = 0) -> List[str]:
         """Get the metric key for extracting values from benchmark results."""
         assert self.objectives is not None
         if objective_index >= len(self.objectives):
             raise IndexError(f"Objective index {objective_index} out of range")
-        
+
         objs = []
         obj = self.objectives[objective_index]
         metrics = obj._break_down_objectives()
