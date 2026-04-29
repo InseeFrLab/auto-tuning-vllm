@@ -10,12 +10,13 @@ study:
   # If not specified, defaults to: ./optuna_studies/{study_name}/study.db
 
 optimization:
-  # Low-latency optimization: Minimize end-to-end request latency
+  # Low-latency optimization: Minimize end-to-end request latency.
+  # `metric` is an arithmetic expression over identifiers of the form
+  # `<name>_<percentile>`. Recommended default percentile is `_median`.
   approach: "single_objective"
   objective:
-    metric: "request_latency"  # End-to-end latency optimization
+    metric: "request_latency_p95"  # Optimize 95th percentile (SLA-friendly)
     direction: "minimize"
-    percentile: "p95"  # Optimize for 95th percentile (SLA-friendly)
   sampler: "tpe"
   n_trials: 50
 

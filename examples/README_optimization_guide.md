@@ -31,33 +31,55 @@ For full control, use the explicit configuration format:
 optimization:
   approach: "single_objective"  # or "multi_objective"
   objective:  # For single objective
-    metric: "output_tokens_per_second"
+    metric: "output_tokens_per_second_median"
     direction: "maximize"
-    percentile: "median"
   sampler: "tpe"
   n_trials: 100
 ```
 
-## Available Metrics
+## The `metric` Field
 
-### Primary Performance Metrics
+`metric` is an **arithmetic expression** built from identifiers of the form
+`<base_metric>_<percentile>`. There is no separate `percentile` field — the
+percentile is part of each identifier.
 
-| Metric | Description | Typical Goal | Units |
-|--------|-------------|--------------|-------|
+The recommended default percentile is `_median`.
+
+### Base Metrics
+
+| Base metric | Description | Typical Goal | Units |
+|---|---|---|---|
 | `output_tokens_per_second` | Token generation throughput | Maximize | tokens/sec |
 | `request_latency` | End-to-end request latency | Minimize | milliseconds |
 | `time_to_first_token_ms` | Time until first token (TTFT) | Minimize | milliseconds |
 | `inter_token_latency_ms` | Latency between tokens (ITL) | Minimize | milliseconds |
 | `requests_per_second` | Request throughput | Maximize | requests/sec |
 
-### Percentile Options
+### Percentile Suffixes
 
-| Percentile | Description | When to Use |
-|------------|-------------|-------------|
-| `"median"` or `"p50"` | 50th percentile | Most common, stable optimization |
-| `"p95"` | 95th percentile | SLA optimization, tail latency |
-| `"p90"` | 90th percentile | Good balance between median and extreme cases |
-| `"p99"` | 99th percentile | Extreme tail latency optimization |
+| Suffix | Description | When to Use |
+|---|---|---|
+| `_median` or `_p50` | 50th percentile | Recommended default — stable optimization |
+| `_p90` | 90th percentile | Good balance between median and extreme cases |
+| `_p95` | 95th percentile | SLA optimization, tail latency |
+| `_p99` | 99th percentile | Extreme tail latency optimization |
+| `_mean` | Arithmetic mean | When you want average-case behavior |
+
+### Custom Expressions
+
+`metric` can be any arithmetic expression over the identifiers above using
+`+`, `-`, `*`, `/`, `**`, parentheses and numeric constants. Examples:
+
+```yaml
+# Tokens generated per request
+metric: "output_tokens_per_second_mean / requests_per_second_median"
+
+# Composite latency score
+metric: "time_to_first_token_ms_p95 + inter_token_latency_ms_p99"
+
+# Throughput penalised by latency
+metric: "(output_tokens_per_second_mean - request_latency_median) * 2"
+```
 
 ## Optimization Approaches
 
@@ -70,9 +92,8 @@ Optimize for one metric only. Best when you have a clear primary goal.
 optimization:
   approach: "single_objective"
   objective:
-    metric: "output_tokens_per_second"
+    metric: "output_tokens_per_second_median"
     direction: "maximize"
-    percentile: "median"
   sampler: "tpe"
   n_trials: 100
 ```
@@ -82,9 +103,8 @@ optimization:
 optimization:
   approach: "single_objective"
   objective:
-    metric: "request_latency"
+    metric: "request_latency_p95"  # Optimize for 95th percentile SLA
     direction: "minimize"
-    percentile: "p95"  # Optimize for 95th percentile SLA
   sampler: "tpe"
   n_trials: 100
 ```
@@ -94,9 +114,8 @@ optimization:
 optimization:
   approach: "single_objective"
   objective:
-    metric: "time_to_first_token_ms"
+    metric: "time_to_first_token_ms_p95"
     direction: "minimize"
-    percentile: "p95"
   sampler: "tpe"
   n_trials: 100
 ```
@@ -110,12 +129,10 @@ Find optimal trade-offs between multiple metrics. Returns Pareto-optimal solutio
 optimization:
   approach: "multi_objective"
   objectives:
-    - metric: "output_tokens_per_second"
+    - metric: "output_tokens_per_second_median"
       direction: "maximize"
-      percentile: "median"
-    - metric: "request_latency"
+    - metric: "request_latency_median"
       direction: "minimize"
-      percentile: "median"
   sampler: "nsga2"  # Recommended for multi-objective
   n_trials: 200
 ```
@@ -125,12 +142,10 @@ optimization:
 optimization:
   approach: "multi_objective"
   objectives:
-    - metric: "output_tokens_per_second"
+    - metric: "output_tokens_per_second_median"
       direction: "maximize"
-      percentile: "median"
-    - metric: "time_to_first_token_ms"
+    - metric: "time_to_first_token_ms_p95"
       direction: "minimize"
-      percentile: "p95"
   sampler: "nsga2"
   n_trials: 200
 ```
@@ -140,12 +155,10 @@ optimization:
 optimization:
   approach: "multi_objective"
   objectives:
-    - metric: "time_to_first_token_ms"
+    - metric: "time_to_first_token_ms_p95"
       direction: "minimize"
-      percentile: "p95"
-    - metric: "request_latency"
+    - metric: "request_latency_p95"
       direction: "minimize"
-      percentile: "p95"
   sampler: "nsga2"
   n_trials: 200
 ```
@@ -170,9 +183,8 @@ optimization:
   # OR explicit:
   # approach: "single_objective"
   # objective:
-  #   metric: "output_tokens_per_second"
+  #   metric: "output_tokens_per_second_mean"
   #   direction: "maximize"
-  #   percentile: "median"
 ```
 
 ### Interactive Applications
@@ -181,9 +193,8 @@ optimization:
 optimization:
   approach: "single_objective"
   objective:
-    metric: "time_to_first_token_ms"
+    metric: "time_to_first_token_ms_p95"
     direction: "minimize"
-    percentile: "p95"
   sampler: "tpe"
   n_trials: 100
 ```
@@ -194,9 +205,8 @@ optimization:
 optimization:
   approach: "single_objective"
   objective:
-    metric: "request_latency"
+    metric: "request_latency_p95"
     direction: "minimize"
-    percentile: "p95"
   sampler: "tpe"
   n_trials: 150
 ```
@@ -209,12 +219,10 @@ optimization:
   # OR explicit:
   # approach: "multi_objective"
   # objectives:
-  #   - metric: "output_tokens_per_second"
+  #   - metric: "output_tokens_per_second_mean"
   #     direction: "maximize"
-  #     percentile: "median"
-  #   - metric: "request_latency"
+  #   - metric: "request_latency_median"
   #     direction: "minimize"
-  #     percentile: "median"
 ```
 
 ### Streaming Applications
@@ -223,9 +231,8 @@ optimization:
 optimization:
   approach: "single_objective"
   objective:
-    metric: "inter_token_latency_ms"
+    metric: "inter_token_latency_ms_p95"
     direction: "minimize"
-    percentile: "p95"
   sampler: "tpe"
   n_trials: 100
 ```
@@ -240,14 +247,23 @@ optimization:
   n_trials: 100
 ```
 
+### Old Structured Format (no longer supported — `percentile` field removed)
+```yaml
+optimization:
+  approach: "single_objective"
+  objective:
+    metric: "output_tokens_per_second"  # bare name (no longer accepted)
+    direction: "maximize"
+    percentile: "median"                # field removed
+```
+
 ### New Format (Recommended)
 ```yaml
 optimization:
   approach: "single_objective"
   objective:
-    metric: "output_tokens_per_second"  # Clear what's being optimized
+    metric: "output_tokens_per_second_median"  # percentile baked into the identifier
     direction: "maximize"
-    percentile: "median"
   sampler: "tpe"
   n_trials: 100
 
@@ -260,9 +276,9 @@ optimization:
 ## Advanced Tips
 
 ### 1. Choosing Percentiles
-- **Median (p50)**: Most stable, good for general optimization
-- **P95**: Good for SLA requirements and tail latency
-- **P99**: Use sparingly, can be noisy and lead to overfitting
+- **`_median` (p50)**: Most stable, good for general optimization
+- **`_p95`**: Good for SLA requirements and tail latency
+- **`_p99`**: Use sparingly, can be noisy and lead to overfitting
 
 ### 2. Trial Count Guidelines
 - **Single objective**: 50-150 trials usually sufficient

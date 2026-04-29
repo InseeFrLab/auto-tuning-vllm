@@ -5,12 +5,13 @@ study:
   # No database - will use local SQLite storage in temp folder
 
 optimization:
-  # High-throughput optimization: Maximize token generation rate
+  # High-throughput optimization: Maximize token generation rate.
+  # `metric` is an arithmetic expression over identifiers of the form
+  # `<name>_<percentile>`. Recommended default percentile is `_median`.
   # approach: "single_objective" or "multi_objective"
   # objective:
-  #   metric: "output_tokens_per_second"  # Throughput optimization
+  #   metric: "output_tokens_per_second_mean"  # Throughput optimization
   #   direction: "maximize"
-  #   percentile: "mean"  # Use median for stable results
   # # sampler: "botorch"
   # n_trials: 200
   preset: "high_throughput"

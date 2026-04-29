@@ -1,5 +1,10 @@
 # Comprehensive optimization configuration examples
-# This file demonstrates all supported optimization approaches
+# This file demonstrates all supported optimization approaches.
+#
+# `metric` is an arithmetic expression over identifiers of the form
+# `<metric_name>_<percentile>` (e.g. "request_latency_p95",
+# "output_tokens_per_second_mean / requests_per_second_median").
+# Recommended default percentile is `_median`.
 
 # =============================================================================
 # SINGLE OBJECTIVE OPTIMIZATION
@@ -12,9 +17,8 @@ study:
 optimization:
   approach: "single_objective"
   objective:
-    metric: "output_tokens_per_second"  # throughput
+    metric: "output_tokens_per_second_median"  # throughput
     direction: "maximize"
-    percentile: "median"  # or "p95", "p90", "p99"
   sampler: "tpe"
   n_trials: 100
 
@@ -22,9 +26,8 @@ optimization:
 # optimization:
 #   approach: "single_objective"
 #   objective:
-#     metric: "request_latency"
+#     metric: "request_latency_p95"  # 95th percentile latency
 #     direction: "minimize"
-#     percentile: "p95"  # Optimize for 95th percentile latency
 #   sampler: "tpe"
 #   n_trials: 100
 
@@ -32,9 +35,8 @@ optimization:
 # optimization:
 #   approach: "single_objective"
 #   objective:
-#     metric: "time_to_first_token_ms"
+#     metric: "time_to_first_token_ms_median"
 #     direction: "minimize"
-#     percentile: "median"
 #   sampler: "tpe"
 #   n_trials: 100
 
@@ -42,9 +44,18 @@ optimization:
 # optimization:
 #   approach: "single_objective"
 #   objective:
-#     metric: "inter_token_latency_ms"
+#     metric: "inter_token_latency_ms_p95"
 #     direction: "minimize"
-#     percentile: "p95"
+#   sampler: "tpe"
+#   n_trials: 100
+
+# Example 4b: Custom composite metric
+# optimization:
+#   approach: "single_objective"
+#   objective:
+#     # Throughput per request (tokens/request) — combines two metrics
+#     metric: "output_tokens_per_second_mean / requests_per_second_median"
+#     direction: "maximize"
 #   sampler: "tpe"
 #   n_trials: 100
 
@@ -56,12 +67,10 @@ optimization:
 # optimization:
 #   approach: "multi_objective"
 #   objectives:
-#     - metric: "output_tokens_per_second"
+#     - metric: "output_tokens_per_second_median"
 #       direction: "maximize"
-#       percentile: "median"
-#     - metric: "time_to_first_token_ms"
+#     - metric: "time_to_first_token_ms_p95"
 #       direction: "minimize"
-#       percentile: "p95"
 #   sampler: "nsga2"  # Recommended for multi-objective
 #   n_trials: 200
 
@@ -69,12 +78,10 @@ optimization:
 # optimization:
 #   approach: "multi_objective"
 #   objectives:
-#     - metric: "output_tokens_per_second"
+#     - metric: "output_tokens_per_second_median"
 #       direction: "maximize"
-#       percentile: "median"
-#     - metric: "request_latency"
+#     - metric: "request_latency_median"
 #       direction: "minimize"
-#       percentile: "median"
 #   sampler: "nsga2"
 #   n_trials: 200
 
@@ -82,12 +89,10 @@ optimization:
 # optimization:
 #   approach: "multi_objective"
 #   objectives:
-#     - metric: "time_to_first_token_ms"
+#     - metric: "time_to_first_token_ms_p95"
 #       direction: "minimize"
-#       percentile: "p95"
-#     - metric: "request_latency"
+#     - metric: "request_latency_p95"
 #       direction: "minimize"
-#       percentile: "p95"
 #   sampler: "nsga2"
 #   n_trials: 200
 
@@ -112,9 +117,8 @@ optimization:
 #   # Equivalent to:
 #   # approach: "single_objective"
 #   # objective:
-#   #   metric: "output_tokens_per_second"
+#   #   metric: "output_tokens_per_second_mean"
 #   #   direction: "maximize"
-#   #   percentile: "median"
 
 # Example 9: Low-Latency Preset
 # optimization:
@@ -123,9 +127,8 @@ optimization:
 #   # Equivalent to:
 #   # approach: "single_objective"
 #   # objective:
-#   #   metric: "request_latency"
+#   #   metric: "request_latency_p95"
 #   #   direction: "minimize"
-#   #   percentile: "p95"
 
 # Example 10: Balanced Preset (Throughput vs Latency)
 # optimization:
@@ -134,35 +137,38 @@ optimization:
 #   # Equivalent to:
 #   # approach: "multi_objective"
 #   # objectives:
-#   #   - metric: "output_tokens_per_second"
+#   #   - metric: "output_tokens_per_second_mean"
 #   #     direction: "maximize"
-#   #     percentile: "median"
-#   #   - metric: "request_latency"
+#   #   - metric: "request_latency_median"
 #   #     direction: "minimize"
-#   #     percentile: "median"
 
 # =============================================================================
 # CONFIGURATION NOTES
 # =============================================================================
 
-# Available metrics:
+# Available base metrics (combine with a percentile suffix below):
 # - output_tokens_per_second: Token generation throughput
-# - request_latency: End-to-end request latency
-# - time_to_first_token_ms: Time to first token (TTFT)
-# - inter_token_latency_ms: Inter-token latency (ITL)
-# - requests_per_second: Request throughput
+# - request_latency:          End-to-end request latency
+# - time_to_first_token_ms:   Time to first token (TTFT)
+# - inter_token_latency_ms:   Inter-token latency (ITL)
+# - requests_per_second:      Request throughput
 
-# Available percentiles:
-# - "median" or "p50": 50th percentile (most common)
-# - "p95": 95th percentile (good for latency SLAs)
-# - "p90": 90th percentile
-# - "p99": 99th percentile (extreme cases)
+# Available percentile suffixes (append with `_`):
+# - _median or _p50: 50th percentile (recommended default)
+# - _p90:            90th percentile
+# - _p95:            95th percentile (good for latency SLAs)
+# - _p99:            99th percentile (extreme cases)
+# - _mean:           Arithmetic mean
+
+# Custom expressions: arithmetic over identifiers (`+`, `-`, `*`, `/`, `**`,
+# parentheses, numeric constants). Example:
+#   metric: "(output_tokens_per_second_mean - request_latency_median) * 2"
 
 # Recommended samplers:
-# - "tpe": Tree-structured Parzen Estimator (good for single objective)
-# - "nsga2": Non-dominated Sorting GA-II (best for multi-objective)
+# - "tpe":     Tree-structured Parzen Estimator (good for single objective)
+# - "nsga2":   Non-dominated Sorting GA-II (best for multi-objective)
 # - "botorch": Bayesian Optimization (advanced single objective)
-# - "random": Random sampling (baseline)
+# - "random":  Random sampling (baseline)
 
 benchmark:
   benchmark_type: "guidellm"
