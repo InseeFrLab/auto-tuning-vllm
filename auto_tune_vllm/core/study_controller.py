@@ -1008,7 +1008,6 @@ class StudyController:
                     {
                         "metric": obj.metric,
                         "direction": obj.direction,
-                        "percentile": obj.percentile,
                     }
                     for obj in (self.config.optimization.objectives or [])
                 ],
@@ -1043,7 +1042,6 @@ class StudyController:
                 "objective": {
                     "metric": objective.metric,
                     "direction": objective.direction,
-                    "percentile": objective.percentile,
                 },
                 "n_trials": len(self.study.trials),
                 "best_value": best_trial.value,

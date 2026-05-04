@@ -7,15 +7,15 @@ study:
   # Will default to: ./optuna_studies/vllm_quick_test/study.db
 
 optimization:
-  # Balanced optimization: Find best throughput vs latency trade-offs
+  # Balanced optimization: Find best throughput vs latency trade-offs.
+  # `metric` is an arithmetic expression over identifiers of the form
+  # `<name>_<percentile>`. Recommended default percentile is `_median`.
   approach: "multi_objective"
   objectives:
-    - metric: "output_tokens_per_second"  # Maximize throughput
+    - metric: "output_tokens_per_second_median"  # Maximize throughput
       direction: "maximize"
-      percentile: "median"
-    - metric: "request_latency"  # Minimize latency
+    - metric: "request_latency_median"  # Minimize latency
       direction: "minimize"
-      percentile: "median"
   sampler: "random"  # Fast for testing (use nsga2 for real optimization)
   n_trials: 10       # Small number for quick test
 

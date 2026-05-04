@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 import logging
+import operator
 import os
 import signal
 import subprocess
@@ -1130,6 +1132,70 @@ class BaseTrialController(TrialController):
                 f"vLLM server health check failed: {self._health_check_failure_reason}"
             )
 
+    def evaluate_metric_expression(self,
+        expression: str,
+        metric_values: dict[str, float],
+    ) -> float:
+        """
+        Evaluate a mathematical expression composed of predefined metrics.
+
+        Args:
+            expression:     The expression to evaluate, e.g. "output_tokens_per_second / requests_per_second"
+            metric_values:  Dictionary {metric_name: value}, e.g. {"requests_per_second": 10.0, ...}
+
+        Returns:
+            The numerical result of the expression.
+
+        Raises:
+            ValueError: If the expression contains unknown names or forbidden constructs.
+            ZeroDivisionError: If a division by zero occurs.
+        """
+
+        # Allowed operators
+        ALLOWED_OPERATORS = {
+            ast.Add: operator.add,       # +
+            ast.Sub: operator.sub,       # -
+            ast.Mult: operator.mul,      # *
+            ast.Div: operator.truediv,   # /
+            ast.Pow: operator.pow,       # **
+            ast.USub: operator.neg,      # -x (unary)
+        }
+
+        def _eval(node: ast.AST) -> float:
+            match node:
+                # Literal number: 2, 3.14, etc.
+                case ast.Constant(value=v) if isinstance(v, (int, float)):
+                    return float(v)
+
+                # Metric name: output_tokens_per_second
+                case ast.Name(id=name):
+                    if name not in metric_values:
+                        raise ValueError(f"Missing value for metric: '{name}'")
+                    return float(metric_values[name])
+
+                # Binary operation: a + b, a / b, etc.
+                case ast.BinOp(left=left, op=op, right=right):
+                    op_type = type(op)
+                    if op_type not in ALLOWED_OPERATORS:
+                        raise ValueError(f"Operator not allowed: {op_type.__name__}")
+                    return ALLOWED_OPERATORS[op_type](_eval(left), _eval(right))
+
+                # Unary operation: -x
+                case ast.UnaryOp(op=op, operand=operand):
+                    op_type = type(op)
+                    if op_type not in ALLOWED_OPERATORS:
+                        raise ValueError(f"Unary operator not allowed: {op_type.__name__}")
+                    return ALLOWED_OPERATORS[op_type](_eval(operand))
+
+                case _:
+                    raise ValueError(
+                        f"Construct not allowed in expression: {ast.dump(node)}"
+                    )
+
+        tree = ast.parse(expression, mode="eval")
+        return _eval(tree.body)
+
+
     def _extract_objectives(
         self, benchmark_result: dict, optimization_config=None
     ) -> list[float]:
@@ -1144,28 +1210,47 @@ class BaseTrialController(TrialController):
 
         objective_values = []
 
-        for _ in optimization_config.objectives:
-            # Get the metric key with percentile if specified
-            metric_key = optimization_config.get_metric_key(len(objective_values))
+        valid_percentiles = ("median", "p50", "p90", "p95", "p99", "mean")
 
-            # Extract the value from benchmark results - FAIL HARD if missing
-            value = benchmark_result.get(metric_key)
+        for i, obj in enumerate(optimization_config.objectives):
+            # Get the metric keys (one per identifier referenced in the objective
+            # expression). Bare keys (no percentile suffix) map to the median value
+            # in benchmark_result thanks to GuideLLM's backward-compat aliasing.
+            metrics_keys = optimization_config.get_metrics_keys(i)
 
-            if value is None:
-                raise RuntimeError(
-                    f"Metric '{metric_key}' not found in benchmark results. "
-                    f"Available metrics: {list(benchmark_result.keys())}"
-                )
+            # Build a dict mapping each identifier (as used in the expression) to
+            # its (float) benchmark value. FAIL HARD on missing or non-numeric.
+            metric_values: dict[str, float] = {}
+            for mk in metrics_keys:
+                value = benchmark_result.get(mk)
 
-            # Convert to float and handle potential conversion errors
-            try:
-                value = float(value)
-            except (ValueError, TypeError):
-                raise RuntimeError(
-                    f"Failed to convert metric '{metric_key}' value '{value}' to float"
-                )
+                if value is None:
+                    raise RuntimeError(
+                        f"Metric '{mk}' not found in benchmark results. "
+                        f"Available metrics: {list(benchmark_result.keys())}"
+                    )
 
-            objective_values.append(value)
+                try:
+                    float_value = float(value)
+                except (ValueError, TypeError):
+                    raise RuntimeError(
+                        f"Failed to convert metric '{mk}' value '{value}' to float"
+                    )
+
+                # Normalize the dict key so it matches the identifier used in the
+                # expression: if no percentile suffix is present, append "_median".
+                if not any(mk.endswith(f"_{p}") for p in valid_percentiles):
+                    dict_key = f"{mk}_median"
+                else:
+                    dict_key = mk
+
+                metric_values[dict_key] = float_value
+
+            # Evaluate the objective expression against the metric values
+            objective_value = self.evaluate_metric_expression(
+                obj.metric, metric_values
+            )
+            objective_values.append(objective_value)
 
         return objective_values
 

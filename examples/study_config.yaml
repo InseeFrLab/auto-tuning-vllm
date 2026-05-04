@@ -4,15 +4,15 @@ study:
   database_url: "postgresql://tuner-user:password@localhost:5432/optuna"
 
 optimization:
-  # Advanced multi-objective: Optimize throughput vs Time-To-First-Token
+  # Advanced multi-objective: Optimize throughput vs Time-To-First-Token.
+  # `metric` is an arithmetic expression over identifiers of the form
+  # `<name>_<percentile>`. Recommended default percentile is `_median`.
   approach: "multi_objective"
   objectives:
-    - metric: "output_tokens_per_second"  # Maximize throughput
+    - metric: "output_tokens_per_second_median"  # Maximize throughput
       direction: "maximize"
-      percentile: "median"
-    - metric: "time_to_first_token_ms"  # Minimize TTFT for responsiveness
+    - metric: "time_to_first_token_ms_p95"  # Worst-case TTFT
       direction: "minimize"
-      percentile: "p95"  # Focus on worst-case TTFT
   sampler: "nsga2"  # Best for multi-objective optimization
   n_trials: 100
 

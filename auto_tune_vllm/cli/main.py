@@ -1104,13 +1104,13 @@ def validate_command(
                 obj_summaries = []
                 for obj in study_config.optimization.objectives:
                     obj_summaries.append(
-                        f"{obj.metric}:{obj.direction}:{obj.percentile}"
+                        f"{obj.metric}:{obj.direction}"
                     )
                 opt_summary = f"multi_objective [{', '.join(obj_summaries)}]"
             else:
                 obj = study_config.optimization.objectives[0]
                 opt_summary = (
-                    f"single_objective {obj.metric}:{obj.direction}:{obj.percentile}"
+                    f"single_objective {obj.metric}:{obj.direction}"
                 )
         except Exception:
             opt_summary = str(
