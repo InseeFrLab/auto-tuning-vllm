@@ -253,7 +253,7 @@ class GuideLLMBenchmark(BenchmarkProvider):
                 ["guidellm", "benchmark", "--help"],
                 capture_output=True,
                 text=True,
-                timeout=15,
+                timeout=30,
                 env=env,
             )
         except subprocess.TimeoutExpired as exc:
