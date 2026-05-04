@@ -1137,59 +1137,59 @@ class BaseTrialController(TrialController):
         metric_values: dict[str, float],
     ) -> float:
         """
-        Évalue une expression mathématique composée de métriques prédéfinies.
+        Evaluate a mathematical expression composed of predefined metrics.
 
         Args:
-            expression:     L'expression à évaluer, ex: "output_tokens_per_second / requests_per_second"
-            metric_values:  Dictionnaire {nom_metrique: valeur}, ex: {"requests_per_second": 10.0, ...}
+            expression:     The expression to evaluate, e.g. "output_tokens_per_second / requests_per_second"
+            metric_values:  Dictionary {metric_name: value}, e.g. {"requests_per_second": 10.0, ...}
 
         Returns:
-            Le résultat numérique de l'expression.
+            The numerical result of the expression.
 
         Raises:
-            ValueError: Si l'expression contient des noms inconnus ou des constructions interdites.
-            ZeroDivisionError: Si une division par zéro se produit.
+            ValueError: If the expression contains unknown names or forbidden constructs.
+            ZeroDivisionError: If a division by zero occurs.
         """
 
-        # Opérateurs autorisés
+        # Allowed operators
         ALLOWED_OPERATORS = {
             ast.Add: operator.add,       # +
             ast.Sub: operator.sub,       # -
             ast.Mult: operator.mul,      # *
             ast.Div: operator.truediv,   # /
             ast.Pow: operator.pow,       # **
-            ast.USub: operator.neg,      # -x (unaire)
+            ast.USub: operator.neg,      # -x (unary)
         }
 
         def _eval(node: ast.AST) -> float:
             match node:
-                # Nombre littéral : 2, 3.14, etc.
+                # Literal number: 2, 3.14, etc.
                 case ast.Constant(value=v) if isinstance(v, (int, float)):
                     return float(v)
 
-                # Nom de métrique : output_tokens_per_second
+                # Metric name: output_tokens_per_second
                 case ast.Name(id=name):
                     if name not in metric_values:
-                        raise ValueError(f"Valeur manquante pour la métrique : '{name}'")
+                        raise ValueError(f"Missing value for metric: '{name}'")
                     return float(metric_values[name])
 
-                # Opération binaire : a + b, a / b, etc.
+                # Binary operation: a + b, a / b, etc.
                 case ast.BinOp(left=left, op=op, right=right):
                     op_type = type(op)
                     if op_type not in ALLOWED_OPERATORS:
-                        raise ValueError(f"Opérateur non autorisé : {op_type.__name__}")
+                        raise ValueError(f"Operator not allowed: {op_type.__name__}")
                     return ALLOWED_OPERATORS[op_type](_eval(left), _eval(right))
 
-                # Opération unaire : -x
+                # Unary operation: -x
                 case ast.UnaryOp(op=op, operand=operand):
                     op_type = type(op)
                     if op_type not in ALLOWED_OPERATORS:
-                        raise ValueError(f"Opérateur unaire non autorisé : {op_type.__name__}")
+                        raise ValueError(f"Unary operator not allowed: {op_type.__name__}")
                     return ALLOWED_OPERATORS[op_type](_eval(operand))
 
                 case _:
                     raise ValueError(
-                        f"Construction non autorisée dans l'expression : {ast.dump(node)}"
+                        f"Construct not allowed in expression: {ast.dump(node)}"
                     )
 
         tree = ast.parse(expression, mode="eval")
