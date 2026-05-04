@@ -24,6 +24,9 @@ class _StubController(BaseTrialController):
     def request_cancellation(self) -> None:  # pragma: no cover
         return None
 
+    def _get_worker_id(self) -> str:  # pragma: no cover
+        return "stub-worker"
+
 
 @pytest.fixture
 def controller() -> _StubController:
