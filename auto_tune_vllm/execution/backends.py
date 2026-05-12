@@ -606,9 +606,14 @@ class LocalExecutionBackend(ExecutionBackend):
             if not future.done()
         ]
 
+        # Phase 1 - Graceful cancellation request
         for job_id, _future in running_jobs:
             controller = self.active_controllers.get(job_id)
             if controller is None:
+                logger.warning(
+                    f"Inconsistent state: future exists for trial {job_id} "
+                    "but no controller found - skipping cancellation"
+                )
                 continue
 
             try:
@@ -619,13 +624,15 @@ class LocalExecutionBackend(ExecutionBackend):
                     f"Failed to request cancellation for local trial {job_id}: {e}"
                 )
 
+        # Phase 2 - Wait and force cleanup
         if running_jobs:
+            futures_list = [future for _, future in running_jobs]
             logger.info(
                 f"Waiting {self.CANCELLATION_DETECTION_WAIT}s for local trials "
                 "to detect cancellation..."
             )
             done, not_done = concurrent.futures.wait(
-                [future for _, future in running_jobs],
+                futures_list,
                 timeout=self.CANCELLATION_DETECTION_WAIT,
             )
             logger.info(
@@ -639,6 +646,10 @@ class LocalExecutionBackend(ExecutionBackend):
 
                 controller = self.active_controllers.get(job_id)
                 if controller is None:
+                    logger.warning(
+                        f"Inconsistent state: future exists for trial {job_id} "
+                        "but no controller found - skipping forced cleanup"
+                    )
                     continue
 
                 try:
@@ -649,11 +660,20 @@ class LocalExecutionBackend(ExecutionBackend):
                         f"Failed forced cleanup for local trial {job_id}: {e}"
                     )
 
+            # Phase 3 - Last chance
             if any(not future.done() for _, future in running_jobs):
                 concurrent.futures.wait(
-                    [future for _, future in running_jobs],
+                    futures_list,
                     timeout=self.GRACEFUL_CLEANUP_TIMEOUT,
                 )
+
+        # Finalization
+        orphaned = [job_id for job_id, future in running_jobs if not future.done()]
+        if orphaned:
+            logger.warning(
+                f"{len(orphaned)} trial(s) could not be stopped and were abandoned: "
+                f"{orphaned}"
+            )
 
         self.active_futures.clear()
         self.active_controllers.clear()
