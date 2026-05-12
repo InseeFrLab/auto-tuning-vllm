@@ -1157,6 +1157,11 @@ class StudyController:
                 benchmark_config=self.config.benchmark,
                 optimization_config=self.config.optimization,
                 logging_config=self.config.logging_config,
+                vllm_startup_timeout=int(
+                    self.config.static_environment_variables.get(
+                        "VLLM_STARTUP_TIMEOUT", 300
+                    )
+                ),
             )
 
             try:
