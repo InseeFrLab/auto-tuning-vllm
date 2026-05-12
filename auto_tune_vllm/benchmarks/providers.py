@@ -134,6 +134,10 @@ class BenchmarkProvider(ABC):
             self._process_pid = None
             self._process_pgid = None
 
+    def validate_preflight(self, config: BenchmarkConfig) -> None:
+        """Validate benchmark toolchain before starting any server processes."""
+        return
+
     @abstractmethod
     def start_benchmark(
         self, model_url: str, config: BenchmarkConfig
@@ -199,20 +203,12 @@ class GuideLLMBenchmark(BenchmarkProvider):
         # Build GuideLLM command
         cmd = self._build_guidellm_command(model_url, config, self._results_file)
 
-        # Validate binary and basic inputs
-        import shutil
-
-        if shutil.which("guidellm") is None:
-            raise RuntimeError(
-                "GuideLLM CLI not found on PATH. "
-                "Please install or provide the full path."
-            )
+        # Validate benchmark target inputs
         if not (model_url.startswith("http://") or model_url.startswith("https://")):
             raise ValueError(f"Invalid model_url: {model_url!r} (expected http/https)")
 
         env = os.environ.copy()
         env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
-        self._validate_guidellm_cli(env)
 
         # Run GuideLLM
         self._logger.info(f"Running: {' '.join(cmd)}")
@@ -245,6 +241,20 @@ class GuideLLMBenchmark(BenchmarkProvider):
             self._process_pgid = None
 
         return self._process
+
+    def validate_preflight(self, config: BenchmarkConfig) -> None:
+        """Validate GuideLLM CLI before launching vLLM or benchmark."""
+        import shutil
+
+        if shutil.which("guidellm") is None:
+            raise RuntimeError(
+                "GuideLLM CLI not found on PATH. "
+                "Please install or provide the full path."
+            )
+
+        env = os.environ.copy()
+        env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
+        self._validate_guidellm_cli(env)
 
     def _validate_guidellm_cli(self, env: dict[str, str]) -> None:
         """Fail fast if GuideLLM cannot start due to dependency/import issues."""
