@@ -1101,6 +1101,9 @@ class StudyController:
 
         Adds max-num-seqs when concurrency > 256.
         Baseline trials are now added to the Optuna study and appear in dashboard.
+
+        Baseline runs do not consume ``n_trials``: that budget is for optimization
+        trials only (consistent with ``_collect_completed_trials`` for async paths).
         """
         if not self.config.baseline or not self.config.baseline.enabled:
             logger.warning(
@@ -1204,8 +1207,6 @@ class StudyController:
                                 values=trial_result.objective_values,
                                 state=TrialState.COMPLETE,
                             )
-                            # Count baseline trial as completed
-                            self.completed_trials += 1
                         else:
                             logger.error(
                                 f"❌ Baseline trial failed: "
@@ -1217,8 +1218,6 @@ class StudyController:
                                 values=None,
                                 state=TrialState.FAIL,
                             )
-                            # Count baseline trial as completed (even if failed)
-                            self.completed_trials += 1
 
                         # Clean up trial object cache
                         if trial.number in self.trial_objects:
@@ -1241,8 +1240,6 @@ class StudyController:
                         values=None,
                         state=TrialState.FAIL,
                     )
-                    # Count baseline trial as completed (even if timed out)
-                    self.completed_trials += 1
                     # Clean up trial object cache
                     if trial.number in self.trial_objects:
                         del self.trial_objects[trial.number]
@@ -1258,8 +1255,6 @@ class StudyController:
                     values=None,
                     state=TrialState.FAIL,
                 )
-                # Count baseline trial as completed (even if excepted)
-                self.completed_trials += 1
                 # Clean up trial object cache
                 if trial.number in self.trial_objects:
                     del self.trial_objects[trial.number]
