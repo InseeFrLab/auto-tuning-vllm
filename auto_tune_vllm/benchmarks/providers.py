@@ -134,10 +134,6 @@ class BenchmarkProvider(ABC):
             self._process_pid = None
             self._process_pgid = None
 
-    def validate_preflight(self, config: BenchmarkConfig) -> None:
-        """Validate benchmark toolchain before starting any server processes."""
-        return
-
     @abstractmethod
     def start_benchmark(
         self, model_url: str, config: BenchmarkConfig
@@ -241,44 +237,6 @@ class GuideLLMBenchmark(BenchmarkProvider):
             self._process_pgid = None
 
         return self._process
-
-    def validate_preflight(self, config: BenchmarkConfig) -> None:
-        """Validate GuideLLM CLI before launching vLLM or benchmark."""
-        import shutil
-
-        if shutil.which("guidellm") is None:
-            raise RuntimeError(
-                "GuideLLM CLI not found on PATH. "
-                "Please install or provide the full path."
-            )
-
-        env = os.environ.copy()
-        env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
-        self._validate_guidellm_cli(env)
-
-    def _validate_guidellm_cli(self, env: dict[str, str]) -> None:
-        """Fail fast if GuideLLM cannot start due to dependency/import issues."""
-        try:
-            result = subprocess.run(
-                ["guidellm", "benchmark", "--help"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-                env=env,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(
-                "GuideLLM CLI validation timed out while running "
-                "'guidellm benchmark --help'."
-            ) from exc
-
-        if result.returncode != 0:
-            error_output = (result.stderr or result.stdout or "").strip()
-            raise RuntimeError(
-                "GuideLLM CLI validation failed while running "
-                f"'guidellm benchmark --help' (exit code {result.returncode}). "
-                f"Output: {error_output}"
-            )
 
     def parse_results(self) -> Dict[str, Any]:
         """

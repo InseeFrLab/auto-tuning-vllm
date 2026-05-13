@@ -337,11 +337,6 @@ class BaseTrialController(TrialController):
 
             # Setup benchmark provider
             self.benchmark_provider = self._create_benchmark_provider(trial_config)
-            controller_logger.info(
-                "Validating benchmark toolchain before starting vLLM server"
-            )
-            self.benchmark_provider.validate_preflight(trial_config.benchmark_config)
-            controller_logger.info("Benchmark toolchain validation passed")
 
             # Setup cancellation checker function
             def should_cancel():
