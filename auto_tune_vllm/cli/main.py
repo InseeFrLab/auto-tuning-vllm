@@ -129,7 +129,7 @@ def _run_guidellm_benchmark_help_preflight_for_optimize(config: StudyConfig) -> 
             ["guidellm", "benchmark", "--help"],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=120,
             env=env,
         )
     except subprocess.TimeoutExpired as exc:
