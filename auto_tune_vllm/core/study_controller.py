@@ -934,8 +934,9 @@ class StudyController:
         """
         Copy selected benchmark scalars onto the Optuna trial as user attributes
         for dashboard visibility (not objectives; not passed to study.tell).
+        Applies to optimization trials and baseline reference trials alike.
         """
-        if result.trial_type != "optimization":
+        if result.trial_type not in ("optimization", "baseline"):
             return
         names = self.config.optimization.log_metrics
         if not names or not result.success or not result.detailed_metrics:
