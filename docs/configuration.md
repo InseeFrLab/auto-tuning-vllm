@@ -180,6 +180,25 @@ Number of optimization trials to run. Each trial tests one parameter combination
 #### `n_startup_trials` (integer, optional)
 Number of random trials to run before starting the main sampler algorithm. Only supported by some samplers (TPE, BoTorch). Helps initialize the sampler with diverse data points.
 
+#### `log_metrics` (list of strings, optional)
+Extra benchmark scalars to copy onto each **Optuna trial** as [user attributes](https://optuna.readthedocs.io/en/stable/reference/generated/optuna.trial.Trial.html#optuna.trial.Trial.set_user_attr), mainly so tools like **Optuna Dashboard** can plot or filter on them alongside objectives.
+
+- **Semantics**: This does **not** change the optimization objective. It only stores additional numbers on the trial record after a successful benchmark.
+- **Identifiers**: Each list entry must be a single metric id in the same `<metric>_<percentile>` form as in objective expressions (see **`objectives`** above), e.g. `request_latency_p95`, `output_tokens_per_second_median`. Allowed names are exactly the combined identifiers derived from the base metrics and percentiles documented for objectives.
+- **Storage**: For each configured name, the runner writes `trial.set_user_attr("metric_<name>", float_value)` using the value from the trial’s `detailed_metrics`. If a name is missing from `detailed_metrics`, or the value cannot be converted to a float, a warning is logged and that attribute is skipped.
+- **Trials**: Applied to **optimization** and **baseline** trials when the run succeeds and detailed metrics are present. Omitted or unset `log_metrics` is treated as an empty list.
+
+Example:
+
+```yaml
+optimization:
+  preset: "balanced"
+  n_trials: 50
+  log_metrics:
+    - "inter_token_latency_ms_p95"
+    - "time_to_first_token_ms_median"
+```
+
 ### Preset Configurations Explained
 
 #### High Throughput Preset

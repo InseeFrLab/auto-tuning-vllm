@@ -40,15 +40,18 @@ class ObjectiveConfig:
     direction: str  # "maximize" or "minimize"
 
     valid_metrics = {
-            "output_tokens_per_second",
-            "request_latency",
-            "time_to_first_token_ms",
-            "inter_token_latency_ms",
-            "requests_per_second",
-        }
+        "output_tokens_per_second",
+        "request_latency",
+        "time_to_first_token_ms",
+        "inter_token_latency_ms",
+        "requests_per_second",
+    }
     valid_directions = {"maximize", "minimize"}
     valid_percentiles = {"median", "p50", "p95", "p90", "p99", "mean"}
-    valid_metrics_combined = {f"{metric}_{percentile}" for metric, percentile in product(valid_metrics, valid_percentiles)}
+    valid_metrics_combined = {
+        f"{metric}_{percentile}"
+        for metric, percentile in product(valid_metrics, valid_percentiles)
+    }
 
     def _break_down_objectives(self) -> list[str]:
         """
@@ -66,9 +69,7 @@ class ObjectiveConfig:
         try:
             tree = ast.parse(self.metric, mode="eval")
         except SyntaxError as e:
-            raise ValueError(
-                f"Invalid metric expression {self.metric!r}: {e}"
-            ) from e
+            raise ValueError(f"Invalid metric expression {self.metric!r}: {e}") from e
 
         metrics: list[str] = []
         seen: set[str] = set()
@@ -122,26 +123,45 @@ class OptimizationConfig:
     approach: Optional[str] = None  # "single_objective" or "multi_objective"
     objectives: Optional[List[ObjectiveConfig]] = None  # For multi-objective
     preset: Optional[str] = None  # "high_throughput", "low_latency", "balanced"
+    log_metrics: Optional[List[str]] = (
+        None  # Optional metrics copied to Optuna trial user attrs (dashboard)
+    )
 
     def __post_init__(self):
         """Process and validate optimization configuration."""
-        # Handle preset configurations
         if self.preset:
             self._apply_preset()
-            return
-
-        # Handle new structured format
-        if self.approach:
+        elif self.approach:
             self._validate_structured_format()
-            return
-
-        # Handle backward compatibility (old format)
-        if self.objective:
+        elif self.objective:
             self._convert_old_format()
-            return
+        else:
+            self._apply_default_config()
+        self._validate_log_metrics()
 
-        # Default fallback
-        self._apply_default_config()
+    def _validate_log_metrics(self) -> None:
+        """Normalize and validate log_metrics (independent of objective setup)."""
+        if self.log_metrics is None:
+            self.log_metrics = []
+            return
+        if not isinstance(self.log_metrics, list):
+            raise ValueError(
+                "log_metrics must be a list of metric identifier strings, "
+                f"got {type(self.log_metrics).__name__}"
+            )
+        valid = ObjectiveConfig.valid_metrics_combined
+        for name in self.log_metrics:
+            if not isinstance(name, str):
+                raise ValueError(
+                    "log_metrics entries must be strings, "
+                    f"got {type(name).__name__}: {name!r}"
+                )
+            if name not in valid:
+                raise ValueError(
+                    f"Unknown metric {name!r} in log_metrics. "
+                    f"Each entry must be a single identifier from "
+                    f"{sorted(valid)}"
+                )
 
     def _apply_preset(self):
         """Apply preset optimization configurations."""

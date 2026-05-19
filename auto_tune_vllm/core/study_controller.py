@@ -916,6 +916,8 @@ class StudyController:
                 f"Stored error attributes for trial {trial_number}: {result.error_type}"
             )
 
+        self._set_log_metric_user_attrs(trial, result)
+
         # Log timing attributes stored
         if result.execution_info:
             logger.debug(
@@ -925,6 +927,42 @@ class StudyController:
                 f"total={result.execution_info.duration_seconds}s, "
                 f"status={result.execution_info.trial_status}"
             )
+
+    def _set_log_metric_user_attrs(
+        self, trial: optuna.Trial, result: TrialResult
+    ) -> None:
+        """
+        Copy selected benchmark scalars onto the Optuna trial as user attributes
+        for dashboard visibility (not objectives; not passed to study.tell).
+        Applies to optimization trials and baseline reference trials alike.
+        """
+        if result.trial_type not in ("optimization", "baseline"):
+            return
+        names = self.config.optimization.log_metrics
+        if not names or not result.success or not result.detailed_metrics:
+            return
+        for name in names:
+            if name not in result.detailed_metrics:
+                logger.warning(
+                    "log_metrics: metric %r not found in detailed_metrics for trial %s; "
+                    "skipping user attr",
+                    name,
+                    result.trial_number,
+                )
+                continue
+            raw = result.detailed_metrics[name]
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "log_metrics: cannot coerce metric %r value %r to float for "
+                    "trial %s; skipping user attr",
+                    name,
+                    raw,
+                    result.trial_number,
+                )
+                continue
+            trial.set_user_attr(f"metric_{name}", value)
 
     def get_best_baseline_result(self) -> list[float] | None:
         """Get the best baseline result for comparison."""
