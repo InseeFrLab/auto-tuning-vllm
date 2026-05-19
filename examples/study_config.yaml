@@ -13,7 +13,9 @@ optimization:
     - metric: "time_to_first_token_ms_p95"  # Worst-case TTFT
       direction: "minimize"
   # Optional: copy extra benchmark scalars to Optuna user attrs (metric_<name>)
-  # for the dashboard; entries must match ObjectiveConfig metric identifiers.
+  # for the dashboard; entries must be single combined metric keys matching
+  # ObjectiveConfig metric identifiers (for example, "inter_token_latency_ms_p95"),
+  # not arithmetic expressions.
   # log_metrics:
   #   - "inter_token_latency_ms_p95"
   sampler: "nsga2"  # Best for multi-objective optimization
