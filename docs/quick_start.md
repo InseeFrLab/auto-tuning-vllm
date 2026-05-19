@@ -51,6 +51,8 @@ auto-tune-vllm --help
 
 Start from [`examples/study_config_local_exec.yaml`](../examples/study_config_local_exec.yaml) for a full example configuration file.
 
+For a visual overview of the runtime, see [Architecture overview](architecture.md).
+
 Key configuration areas:
 - Set/confirm the study name and model ([Study Configuration](configuration.md#study-configuration))
 - Choose the optimization objective(s) (e.g., throughput) ([Optimization Configuration](configuration.md#optimization-configuration))

@@ -63,8 +63,9 @@ parameters: # parameters to optimize
     enabled: true
     options: [0, 256, 512, 1024, 2048, 4096, 8192, 1150]
 
+  # Unsupported on vLLM V1 (see static_environment_variables.VLLM_USE_V1 below).
   max_num_partial_prefills:
-    enabled: true
+    enabled: false
     options: [1, 2, 4, 8]
 
   max_seq_len_to_capture:
