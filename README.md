@@ -70,6 +70,7 @@ auto-tune-vllm logs --study-name study_35884
 ## Documentation
 
 - [Quick Start Guide](docs/quick_start.md) - Get running in 5 minutes
+- [Architecture overview](docs/architecture.md) - How the framework works (diagrams)
 - [Configuration Reference](docs/configuration.md) - Complete YAML configuration guide
 - [Ray Cluster Setup](docs/ray_cluster_setup.md) - For distributed optimization (optional)
 
