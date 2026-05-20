@@ -291,6 +291,32 @@ Default: 50
 #### `processor` (string, optional)
 Separate model for request processing if different from the served model. Rarely needed - defaults to the same value as `model`.
 
+#### `warmup` (number, optional)
+GuideLLM warmup period, excluded from benchmark metrics. Reduces variance from cold GPU/KV cache at the start of each run.
+
+- **Fraction** (recommended): value strictly between `0` and `1`, e.g. `0.1` = first 10% of the run used for warmup only.
+- **Absolute**: value `>= 1` = fixed number of requests or seconds (see [GuideLLM](https://github.com/vllm-project/guidellm) docs).
+
+Omit or set to `null` to disable (GuideLLM default). Applies to optimization and baseline trials. Requires a recent [GuideLLM](https://github.com/vllm-project/guidellm) install that supports `--warmup` / `--cooldown` on the `guidellm benchmark` command.
+
+When both `warmup` and `cooldown` are fractional, their sum must stay below `1` so a measured window remains.
+
+**Measured duration:** warmup and cooldown are taken from the same `--max-seconds` budget (they do not extend wall-clock time). With `max_seconds: 300`, `warmup: 0.1`, and `cooldown: 0.1`, roughly 240 seconds contribute to reported metrics—increase `max_seconds` if you need a longer steady-state phase.
+
+#### `cooldown` (number, optional)
+GuideLLM cooldown period at the end of the run, also excluded from metrics. Same format as `warmup` (e.g. `0.1` for the last 10%).
+
+Example:
+
+```yaml
+benchmark:
+  model: "Qwen/Qwen2.5-0.5B-Instruct"
+  max_seconds: 300
+  rate: 16
+  warmup: 0.1
+  cooldown: 0.1
+```
+
 ## Logging Configuration
 
 The `logging` section controls where and how detailed logging information is recorded. This section is optional - if omitted, logs are only displayed on the console.
@@ -659,6 +685,8 @@ benchmark:
   prompt_tokens: 1000
   output_tokens: 1000
   rate: 100
+  # warmup: 0.1
+  # cooldown: 0.1
 
 logging:
   file_path: "/var/log/auto-tune-vllm"

@@ -28,6 +28,9 @@ benchmark:
   dataset: null  # Use synthetic data
   prompt_tokens: 500
   output_tokens: 500
+  # Optional: reduce metric variance (requires recent GuideLLM CLI)
+  # warmup: 0.1
+  # cooldown: 0.1
 
 logging:
   file_path: "/tmp/auto-tune-vllm-logs" # Optional local file path
