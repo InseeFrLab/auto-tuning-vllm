@@ -29,9 +29,34 @@ class BenchmarkConfig:
     output_tokens_min: Optional[int] = None
     output_tokens_max: Optional[int] = None
 
+    # GuideLLM warmup/cooldown (excluded from reported metrics). See GuideLLM docs:
+    # values in (0, 1) are a fraction of run time/requests; values >= 1 are absolute.
+    warmup: Optional[float] = None
+    cooldown: Optional[float] = None
+
     # Set in benchmark section of study config
     # Logging level for GuideLLM
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
+
+    def __post_init__(self) -> None:
+        for name, value in (("warmup", self.warmup), ("cooldown", self.cooldown)):
+            if value is None:
+                continue
+            if value <= 0:
+                raise ValueError(
+                    f"benchmark.{name} must be greater than 0 or omitted; got {value}"
+                )
+        if (
+            self.warmup is not None
+            and self.cooldown is not None
+            and 0 < self.warmup < 1
+            and 0 < self.cooldown < 1
+            and self.warmup + self.cooldown >= 1
+        ):
+            raise ValueError(
+                "benchmark warmup and cooldown fractions must sum to less than 1 "
+                f"(got warmup={self.warmup}, cooldown={self.cooldown})"
+            )
 
     @property
     def use_synthetic_data(self) -> bool:

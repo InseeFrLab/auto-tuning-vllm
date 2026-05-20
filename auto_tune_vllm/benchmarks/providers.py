@@ -332,6 +332,11 @@ class GuideLLMBenchmark(BenchmarkProvider):
             '{"trust-remote-code":"true"}',
         ]
 
+        if config.warmup is not None:
+            cmd.extend(["--warmup", str(config.warmup)])
+        if config.cooldown is not None:
+            cmd.extend(["--cooldown", str(config.cooldown)])
+
         # Add dataset or synthetic data configuration
         if config.use_synthetic_data:
             # Build data JSON object - only include statistical parameters if specified

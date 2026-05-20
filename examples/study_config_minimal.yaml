@@ -29,6 +29,8 @@ benchmark:
   dataset: null
   prompt_tokens: 100
   output_tokens: 100
+  # warmup: 0.1
+  # cooldown: 0.1
 
 # No logging section specified - will use console logging only
 
