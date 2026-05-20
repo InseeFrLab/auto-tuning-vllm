@@ -199,16 +199,12 @@ class GuideLLMBenchmark(BenchmarkProvider):
         # Build GuideLLM command
         cmd = self._build_guidellm_command(model_url, config, self._results_file)
 
-        # Validate binary and basic inputs
-        import shutil
-
-        if shutil.which("guidellm") is None:
-            raise RuntimeError(
-                "GuideLLM CLI not found on PATH. "
-                "Please install or provide the full path."
-            )
+        # Validate benchmark target inputs
         if not (model_url.startswith("http://") or model_url.startswith("https://")):
             raise ValueError(f"Invalid model_url: {model_url!r} (expected http/https)")
+
+        env = os.environ.copy()
+        env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
 
         # Run GuideLLM
         self._logger.info(f"Running: {' '.join(cmd)}")
@@ -217,9 +213,6 @@ class GuideLLMBenchmark(BenchmarkProvider):
         # Use Popen so we can terminate if vLLM dies
         # start_new_session=True puts it in its own process group for clean
         # termination
-        env = os.environ.copy()
-        env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
-
         self._process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,

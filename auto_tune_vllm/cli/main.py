@@ -1,7 +1,9 @@
 """Command-line interface for auto-tune-vllm."""
 
 import logging
+import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -107,6 +109,41 @@ def _display_log_viewing_instructions(config: StudyConfig):
             "[blue]"
             "📋 Console logging only - no database or file logging configured[/blue]"
         )
+
+
+def _run_guidellm_benchmark_help_preflight_for_optimize(config: StudyConfig) -> None:
+    """Once per `optimize` run: verify `guidellm benchmark --help` succeeds (GuideLLM only)."""
+    if config.benchmark.benchmark_type != "guidellm":
+        return
+
+    console.print("[blue]Checking GuideLLM CLI (guidellm benchmark --help)...[/blue]")
+    if shutil.which("guidellm") is None:
+        raise RuntimeError(
+            "GuideLLM CLI not found on PATH. "
+            "Install GuideLLM or ensure `guidellm` is available."
+        )
+    env = os.environ.copy()
+    env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.benchmark.logging_level
+    try:
+        result = subprocess.run(
+            ["guidellm", "benchmark", "--help"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            "GuideLLM CLI check timed out while running 'guidellm benchmark --help'."
+        ) from exc
+
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(
+            f"GuideLLM CLI check failed (exit code {result.returncode}) "
+            f"for 'guidellm benchmark --help'. Output: {err}"
+        )
+    console.print("[green]✓ GuideLLM CLI OK[/green]")
 
 
 @app.command("optimize")
@@ -405,6 +442,8 @@ def run_optimization_sync(
             "so startup sampling would consume the full trial budget. "
             f"n_startup_trials is now {config.optimization.n_startup_trials}.[/yellow]"
         )
+    _run_guidellm_benchmark_help_preflight_for_optimize(config)
+
     # Create study controller (uses config with possibly updated sampler/n_trials)
     controller = StudyController.create_from_config(
         backend, config, create_db=create_db
