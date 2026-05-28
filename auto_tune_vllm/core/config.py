@@ -114,6 +114,7 @@ class OptimizationConfig:
     objective: Union[str, List[str]] = None  # Old format: "maximize", "minimize", list
     sampler: str = "tpe"  # "tpe", "random", "gp", "botorch", "nsga2", "grid"
     n_trials: int = 100
+    n_repeats: int = 1  # Benchmark runs per trial config (same vLLM server)
     n_startup_trials: int = 10  # Number of random startup trials
     max_concurrent_trials: Optional[int] = (
         None  # Maximum concurrent trials (required for resource management)
@@ -138,6 +139,11 @@ class OptimizationConfig:
         else:
             self._apply_default_config()
         self._validate_log_metrics()
+        self._validate_n_repeats()
+
+    def _validate_n_repeats(self) -> None:
+        if self.n_repeats < 1:
+            raise ValueError(f"n_repeats must be >= 1, got {self.n_repeats}")
 
     def _validate_log_metrics(self) -> None:
         """Normalize and validate log_metrics (independent of objective setup)."""

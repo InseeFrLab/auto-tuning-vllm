@@ -177,6 +177,22 @@ Number of optimization trials to run. Each trial tests one parameter combination
 - **Production**: 100-500 trials for thorough optimization
 - **Multi-objective**: Typically needs 2x more trials than single-objective
 
+#### `n_repeats` (integer, optional)
+Number of GuideLLM benchmark runs executed for each trial configuration before reporting results to Optuna. Default: `1` (same behavior as before).
+
+- **Budget**: `n_trials` still counts unique parameter configurations explored by the sampler. Total benchmark runs are approximately `n_trials × n_repeats`.
+- **Execution**: One vLLM server start per trial; benchmarks run back-to-back on the same server. If any repeat fails, the whole trial is marked failed.
+- **Optuna objective**: Mean of the repeat objective values.
+- **Storage**: When `n_repeats > 1`, averaged metrics are stored in `detailed_metrics`, with per-run values under `detailed_metrics.repeats`.
+
+Example:
+
+```yaml
+optimization:
+  n_trials: 50
+  n_repeats: 3
+```
+
 #### `n_startup_trials` (integer, optional)
 Number of random trials to run before starting the main sampler algorithm. Only supported by some samplers (TPE, BoTorch). Helps initialize the sampler with diverse data points.
 
@@ -186,6 +202,7 @@ Extra benchmark scalars to copy onto each **Optuna trial** as [user attributes](
 - **Semantics**: This does **not** change the optimization objective. It only stores additional numbers on the trial record after a successful benchmark.
 - **Identifiers**: Each list entry must be a single metric id in the same `<metric>_<percentile>` form as in objective expressions (see **`objectives`** above), e.g. `request_latency_p95`, `output_tokens_per_second_median`. Allowed names are exactly the combined identifiers derived from the base metrics and percentiles documented for objectives.
 - **Storage**: For each configured name, the runner writes `trial.set_user_attr("metric_<name>", float_value)` using the value from the trial’s `detailed_metrics`. If a name is missing from `detailed_metrics`, or the value cannot be converted to a float, a warning is logged and that attribute is skipped.
+- **Repeats**: When `n_repeats > 1`, each listed metric also gets `metric_<name>_rel_range` (relative range: `(max - min) / abs(mean)`) and `metric_<name>_values` (list of per-run floats). The trial also stores `n_repeats`.
 - **Trials**: Applied to **optimization** and **baseline** trials when the run succeeds and detailed metrics are present. Omitted or unset `log_metrics` is treated as an empty list.
 
 Example:

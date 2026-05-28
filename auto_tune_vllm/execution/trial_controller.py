@@ -11,7 +11,7 @@ import subprocess
 import time
 from abc import ABC, abstractmethod
 from enum import Enum, auto
-from typing import Optional
+from typing import Any, Optional
 
 try:
     import ray
@@ -387,6 +387,14 @@ class BaseTrialController(TrialController):
             )
             execution_info.mark_vllm_ready()
 
+            n_repeats = self._get_n_repeats(trial_config)
+            repeat_index = 0
+            repeat_runs: list[dict[str, Any]] = []
+            if n_repeats > 1:
+                controller_logger.info(
+                    f"Running {n_repeats} benchmark repeats per trial config"
+                )
+
             # Main execution loop - concise with extracted state handlers
             while True:
                 poll_count += 1
@@ -404,7 +412,11 @@ class BaseTrialController(TrialController):
                 # Handle current state
                 if state == TrialState.WAITING_FOR_VLLM:
                     result = self._handle_vllm_startup(
-                        trial_config, server_info, vllm_start_time, controller_logger
+                        trial_config,
+                        server_info,
+                        vllm_start_time,
+                        controller_logger,
+                        repeat_index,
                     )
                     if result:  # vLLM is ready, transition to benchmark
                         benchmark_process, benchmark_start_time = result
@@ -430,13 +442,40 @@ class BaseTrialController(TrialController):
                             f"success={result.success}, "
                             f"objectives={result.objective_values}"
                         )
-                        execution_info.mark_benchmark_completed()
-                        execution_info.mark_completed(status="success")
-                        controller_logger.info(
-                            f"Returning successful trial result with "
-                            f"{len(result.objective_values)} objectives"
+                        repeat_runs.append(
+                            {
+                                "run": repeat_index,
+                                "objective_values": result.objective_values,
+                                "detailed_metrics": dict(result.detailed_metrics),
+                            }
                         )
-                        return result
+                        repeat_index += 1
+                        if repeat_index >= n_repeats:
+                            execution_info.mark_benchmark_completed()
+                            execution_info.mark_completed(status="success")
+                            final_result = self._build_trial_result_from_repeats(
+                                repeat_runs, trial_config, execution_info
+                            )
+                            controller_logger.info(
+                                f"Returning successful trial result with "
+                                f"{len(final_result.objective_values)} objectives "
+                                f"({n_repeats} repeat(s))"
+                            )
+                            return final_result
+
+                        controller_logger.info(
+                            f"Benchmark repeat {repeat_index}/{n_repeats} completed, "
+                            "starting next repeat"
+                        )
+                        benchmark_process, benchmark_start_time = (
+                            self._start_benchmark_run(
+                                trial_config,
+                                server_info,
+                                controller_logger,
+                                repeat_index,
+                            )
+                        )
+                        continue
                     # If None, benchmark still running - continue polling
                     controller_logger.debug(
                         f"Benchmark still running... "
@@ -708,12 +747,100 @@ class BaseTrialController(TrialController):
 
             raise KeyboardInterrupt(f"Trial cancelled while {state.name}")
 
+    @staticmethod
+    def _get_n_repeats(trial_config: TrialConfig) -> int:
+        if trial_config.optimization_config is None:
+            return 1
+        return trial_config.optimization_config.n_repeats
+
+    def _start_benchmark_run(
+        self,
+        trial_config: TrialConfig,
+        server_info: dict,
+        logger,
+        repeat_index: int,
+    ) -> tuple[Any, float]:
+        n_repeats = self._get_n_repeats(trial_config)
+        if n_repeats > 1:
+            context_trial_id = f"{trial_config.trial_id}_repeat_{repeat_index}"
+        else:
+            context_trial_id = trial_config.trial_id
+
+        logger.info(f"Starting benchmark run {repeat_index + 1}/{n_repeats}")
+        benchmark_logger = self._get_trial_logger("benchmark")
+
+        if hasattr(self.benchmark_provider, "set_logger"):
+            self.benchmark_provider.set_logger(benchmark_logger)
+
+        if hasattr(self.benchmark_provider, "set_trial_context"):
+            self.benchmark_provider.set_trial_context(
+                trial_config.study_name, context_trial_id
+            )
+
+        benchmark_process = self.benchmark_provider.start_benchmark(
+            server_info["url"], trial_config.benchmark_config
+        )
+        return benchmark_process, time.time()
+
+    @staticmethod
+    def _average_detailed_metrics(metrics_runs: list[dict[str, Any]]) -> dict[str, Any]:
+        if len(metrics_runs) == 1:
+            return dict(metrics_runs[0])
+
+        averaged: dict[str, Any] = {}
+        for key in metrics_runs[0]:
+            values = [run[key] for run in metrics_runs if key in run]
+            if values and all(isinstance(value, (int, float)) for value in values):
+                averaged[key] = sum(values) / len(values)
+        return averaged
+
+    def _build_trial_result_from_repeats(
+        self,
+        repeat_runs: list[dict[str, Any]],
+        trial_config: TrialConfig,
+        execution_info: ExecutionInfo,
+    ) -> TrialResult:
+        if len(repeat_runs) == 1:
+            run = repeat_runs[0]
+            return TrialResult(
+                trial_id=trial_config.trial_id,
+                trial_number=trial_config.trial_number,
+                trial_type=trial_config.trial_type,
+                objective_values=run["objective_values"],
+                detailed_metrics=run["detailed_metrics"],
+                execution_info=execution_info,
+                success=True,
+            )
+
+        metrics_runs = [run["detailed_metrics"] for run in repeat_runs]
+        averaged_metrics = self._average_detailed_metrics(metrics_runs)
+        averaged_metrics["repeats"] = [
+            {"run": run["run"], **run["detailed_metrics"]} for run in repeat_runs
+        ]
+
+        n_objectives = len(repeat_runs[0]["objective_values"])
+        mean_objectives = []
+        for objective_index in range(n_objectives):
+            values = [run["objective_values"][objective_index] for run in repeat_runs]
+            mean_objectives.append(sum(values) / len(values))
+
+        return TrialResult(
+            trial_id=trial_config.trial_id,
+            trial_number=trial_config.trial_number,
+            trial_type=trial_config.trial_type,
+            objective_values=mean_objectives,
+            detailed_metrics=averaged_metrics,
+            execution_info=execution_info,
+            success=True,
+        )
+
     def _handle_vllm_startup(
         self,
         trial_config: TrialConfig,
         server_info: dict,
         vllm_start_time: float,
         logger,
+        repeat_index: int = 0,
     ):
         """Handle vLLM startup state.
 
@@ -753,23 +880,9 @@ class BaseTrialController(TrialController):
                     max_failures=trial_config.health_check_max_failures,
                 )
 
-                # Setup and start benchmark
-                logger.info("Starting benchmark run")
-                benchmark_logger = self._get_trial_logger("benchmark")
-
-                if hasattr(self.benchmark_provider, "set_logger"):
-                    self.benchmark_provider.set_logger(benchmark_logger)
-
-                if hasattr(self.benchmark_provider, "set_trial_context"):
-                    self.benchmark_provider.set_trial_context(
-                        trial_config.study_name, trial_config.trial_id
-                    )
-
-                # Start benchmark as subprocess
-                benchmark_process = self.benchmark_provider.start_benchmark(
-                    server_info["url"], trial_config.benchmark_config
+                return self._start_benchmark_run(
+                    trial_config, server_info, logger, repeat_index
                 )
-                return benchmark_process, time.time()
 
         except requests.exceptions.RequestException as e:
             # Health check failed, log and continue polling
@@ -1132,7 +1245,8 @@ class BaseTrialController(TrialController):
                 f"vLLM server health check failed: {self._health_check_failure_reason}"
             )
 
-    def evaluate_metric_expression(self,
+    def evaluate_metric_expression(
+        self,
         expression: str,
         metric_values: dict[str, float],
     ) -> float:
@@ -1153,12 +1267,12 @@ class BaseTrialController(TrialController):
 
         # Allowed operators
         ALLOWED_OPERATORS = {
-            ast.Add: operator.add,       # +
-            ast.Sub: operator.sub,       # -
-            ast.Mult: operator.mul,      # *
-            ast.Div: operator.truediv,   # /
-            ast.Pow: operator.pow,       # **
-            ast.USub: operator.neg,      # -x (unary)
+            ast.Add: operator.add,  # +
+            ast.Sub: operator.sub,  # -
+            ast.Mult: operator.mul,  # *
+            ast.Div: operator.truediv,  # /
+            ast.Pow: operator.pow,  # **
+            ast.USub: operator.neg,  # -x (unary)
         }
 
         def _eval(node: ast.AST) -> float:
@@ -1184,7 +1298,9 @@ class BaseTrialController(TrialController):
                 case ast.UnaryOp(op=op, operand=operand):
                     op_type = type(op)
                     if op_type not in ALLOWED_OPERATORS:
-                        raise ValueError(f"Unary operator not allowed: {op_type.__name__}")
+                        raise ValueError(
+                            f"Unary operator not allowed: {op_type.__name__}"
+                        )
                     return ALLOWED_OPERATORS[op_type](_eval(operand))
 
                 case _:
@@ -1194,7 +1310,6 @@ class BaseTrialController(TrialController):
 
         tree = ast.parse(expression, mode="eval")
         return _eval(tree.body)
-
 
     def _extract_objectives(
         self, benchmark_result: dict, optimization_config=None
@@ -1247,9 +1362,7 @@ class BaseTrialController(TrialController):
                 metric_values[dict_key] = float_value
 
             # Evaluate the objective expression against the metric values
-            objective_value = self.evaluate_metric_expression(
-                obj.metric, metric_values
-            )
+            objective_value = self.evaluate_metric_expression(obj.metric, metric_values)
             objective_values.append(objective_value)
 
         return objective_values
