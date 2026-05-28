@@ -330,6 +330,8 @@ class GuideLLMBenchmark(BenchmarkProvider):
             results_file,
             "--processor-args",
             '{"trust-remote-code":"true"}',
+            "--sample-requests",
+            str(config.sample_requests),
         ]
 
         if config.warmup is not None:

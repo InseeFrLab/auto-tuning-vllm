@@ -34,6 +34,9 @@ class BenchmarkConfig:
     warmup: Optional[float] = None
     cooldown: Optional[float] = None
 
+    # Max detailed request samples stored in benchmark JSON output (GuideLLM --sample-requests).
+    sample_requests: int = 0
+
     # Set in benchmark section of study config
     # Logging level for GuideLLM
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
@@ -56,6 +59,10 @@ class BenchmarkConfig:
             raise ValueError(
                 "benchmark warmup and cooldown fractions must sum to less than 1 "
                 f"(got warmup={self.warmup}, cooldown={self.cooldown})"
+            )
+        if self.sample_requests < 0:
+            raise ValueError(
+                f"benchmark.sample_requests must be >= 0; got {self.sample_requests}"
             )
 
     @property
