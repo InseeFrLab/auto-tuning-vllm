@@ -941,6 +941,10 @@ class StudyController:
         names = self.config.optimization.log_metrics
         if not names or not result.success or not result.detailed_metrics:
             return
+
+        n_repeats = self.config.optimization.n_repeats
+        repeat_runs = result.detailed_metrics.get("repeats", [])
+
         for name in names:
             if name not in result.detailed_metrics:
                 logger.warning(
@@ -962,7 +966,63 @@ class StudyController:
                     result.trial_number,
                 )
                 continue
-            trial.set_user_attr(f"metric_{name}", value)
+
+            if n_repeats > 1:
+                repeat_values = self._collect_repeat_metric_values(
+                    name, repeat_runs, result.trial_number
+                )
+                if repeat_values is None:
+                    continue
+                rel_range = 0.0
+                if value != 0:
+                    rel_range = (max(repeat_values) - min(repeat_values)) / abs(value)
+                trial.set_user_attr(f"metric_{name}", value)
+                trial.set_user_attr(f"metric_{name}_rel_range", round(rel_range, 6))
+                trial.set_user_attr(f"metric_{name}_values", repeat_values)
+            else:
+                trial.set_user_attr(f"metric_{name}", value)
+
+        if n_repeats > 1:
+            trial.set_user_attr("n_repeats", n_repeats)
+
+    @staticmethod
+    def _collect_repeat_metric_values(
+        name: str,
+        repeat_runs: list,
+        trial_number: int | None,
+    ) -> list[float] | None:
+        if not repeat_runs:
+            logger.warning(
+                "log_metrics: repeats missing from detailed_metrics for trial %s; "
+                "skipping user attr for %r",
+                trial_number,
+                name,
+            )
+            return None
+
+        repeat_values: list[float] = []
+        for run in repeat_runs:
+            if name not in run:
+                logger.warning(
+                    "log_metrics: metric %r not found in repeat run %s for trial %s; "
+                    "skipping user attr",
+                    name,
+                    run.get("run"),
+                    trial_number,
+                )
+                return None
+            try:
+                repeat_values.append(float(run[name]))
+            except (TypeError, ValueError):
+                logger.warning(
+                    "log_metrics: cannot coerce repeat metric %r value %r to float "
+                    "for trial %s; skipping user attr",
+                    name,
+                    run[name],
+                    trial_number,
+                )
+                return None
+        return repeat_values
 
     def get_best_baseline_result(self) -> list[float] | None:
         """Get the best baseline result for comparison."""
