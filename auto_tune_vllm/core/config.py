@@ -41,6 +41,8 @@ class ObjectiveConfig:
 
     valid_metrics = {
         "output_tokens_per_second",
+        "prompt_tokens_per_second",
+        "tokens_per_second",
         "request_latency",
         "time_to_first_token_ms",
         "inter_token_latency_ms",

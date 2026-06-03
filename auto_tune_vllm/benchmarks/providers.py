@@ -169,6 +169,7 @@ class GuideLLMBenchmark(BenchmarkProvider):
     METRIC_CATEGORIES = {
         # Throughput metrics - use 'total' for overall system performance
         "output_tokens_per_second": "total",
+        "prompt_tokens_per_second": "total",
         "requests_per_second": "total",
         "tokens_per_second": "total",
         # Quality metrics - use 'successful' for performance characteristics
@@ -395,6 +396,8 @@ class GuideLLMBenchmark(BenchmarkProvider):
                 "requests_per_second",
                 "request_latency",
                 "output_tokens_per_second",
+                "prompt_tokens_per_second",
+                "tokens_per_second",
                 "time_to_first_token_ms",
                 "inter_token_latency_ms",
             ]
