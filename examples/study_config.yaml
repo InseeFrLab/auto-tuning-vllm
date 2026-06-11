@@ -31,6 +31,7 @@ benchmark:
   # Optional: reduce metric variance (requires recent GuideLLM CLI)
   # warmup: 0.1
   # cooldown: 0.1
+  # rampup: 10
   # sample_requests: 0  # default; increase to keep detailed request samples in benchmark JSON
 
 logging:

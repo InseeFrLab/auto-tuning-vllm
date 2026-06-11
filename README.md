@@ -38,6 +38,7 @@ The fork baseline is commit [`3c4264d`](https://github.com/InseeFrLab/auto-tunin
 ### Benchmarking (GuideLLM)
 
 - **`benchmark.warmup` / `benchmark.cooldown`** — exclude cold-start and shutdown phases from reported metrics to reduce variance ([#24](https://github.com/InseeFrLab/auto-tuning-vllm/pull/24))
+- **`benchmark.rampup`** — linear load ramp-up duration in seconds before reaching target concurrency
 - **`benchmark.sample_requests`** — control per-request samples in benchmark JSON output (default `0` keeps files small; requires GuideLLM `>= 0.5.4`) ([#27](https://github.com/InseeFrLab/auto-tuning-vllm/pull/27))
 
 ### Bug fixes
