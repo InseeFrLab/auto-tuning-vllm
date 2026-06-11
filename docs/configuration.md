@@ -306,6 +306,14 @@ When both `warmup` and `cooldown` are fractional, their sum must stay below `1` 
 #### `cooldown` (number, optional)
 GuideLLM cooldown period at the end of the run, also excluded from metrics. Same format as `warmup` (e.g. `0.1` for the last 10%).
 
+#### `rampup` (number, optional)
+GuideLLM ramp-up duration in seconds. Requests are spread linearly from zero up to the target concurrency (`rate`) over this period at the start of the benchmark.
+
+- **Seconds**: e.g. `rampup: 10` = 10 seconds to reach full concurrency.
+- Omit or set to `null` to disable (GuideLLM default).
+
+Unlike `warmup`, ramp-up requests are included in reported metrics — it controls how load increases, not which phase is measured. See [GuideLLM benchmark docs](https://github.com/vllm-project/guidellm/blob/main/docs/getting-started/benchmark.md).
+
 #### `sample_requests` (integer, optional)
 Maximum number of detailed request samples stored in GuideLLM benchmark JSON output (`--sample-requests`). Default: `0` (no per-request samples; keeps result files small). Set to a positive value when you need request-level timings for debugging or deeper analysis. Requires [GuideLLM](https://github.com/vllm-project/guidellm) `>= 0.5.4` (fix for `--sample-requests` in [v0.5.4](https://github.com/vllm-project/guidellm/releases/tag/v0.5.4)).
 
@@ -318,6 +326,7 @@ benchmark:
   rate: 16
   warmup: 0.1
   cooldown: 0.1
+  rampup: 10
   # sample_requests: 20  # optional; default 0
 ```
 
@@ -691,6 +700,7 @@ benchmark:
   rate: 100
   # warmup: 0.1
   # cooldown: 0.1
+  # rampup: 10
   # sample_requests: 0  # default; increase to keep detailed request samples in benchmark JSON
 
 logging:

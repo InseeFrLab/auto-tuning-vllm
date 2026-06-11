@@ -34,6 +34,9 @@ class BenchmarkConfig:
     warmup: Optional[float] = None
     cooldown: Optional[float] = None
 
+    # GuideLLM ramp-up duration in seconds (linear increase to target rate). Omit to disable.
+    rampup: Optional[float] = None
+
     # Max detailed request samples stored in benchmark JSON output (GuideLLM --sample-requests).
     sample_requests: int = 0
 
@@ -42,7 +45,11 @@ class BenchmarkConfig:
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     def __post_init__(self) -> None:
-        for name, value in (("warmup", self.warmup), ("cooldown", self.cooldown)):
+        for name, value in (
+            ("warmup", self.warmup),
+            ("cooldown", self.cooldown),
+            ("rampup", self.rampup),
+        ):
             if value is None:
                 continue
             if value <= 0:

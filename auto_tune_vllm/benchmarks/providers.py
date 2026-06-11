@@ -338,6 +338,8 @@ class GuideLLMBenchmark(BenchmarkProvider):
             cmd.extend(["--warmup", str(config.warmup)])
         if config.cooldown is not None:
             cmd.extend(["--cooldown", str(config.cooldown)])
+        if config.rampup is not None:
+            cmd.extend(["--rampup", str(config.rampup)])
 
         # Add dataset or synthetic data configuration
         if config.use_synthetic_data:

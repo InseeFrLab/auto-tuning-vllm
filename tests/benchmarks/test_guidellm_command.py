@@ -50,3 +50,23 @@ def test_fraction_warmup_plus_cooldown_must_leave_measured_window():
 
 def test_mixed_fraction_and_absolute_skips_sum_check():
     BenchmarkConfig(model="m", warmup=0.1, cooldown=10)
+
+
+def test_rampup_included_when_set():
+    cmd = _build_cmd(rampup=10)
+    assert cmd[cmd.index("--rampup") + 1] == "10"
+
+
+def test_rampup_omitted_when_unset():
+    cmd = _build_cmd()
+    assert "--rampup" not in cmd
+
+
+def test_rampup_zero_rejected():
+    with pytest.raises(ValueError, match="rampup"):
+        BenchmarkConfig(model="m", rampup=0)
+
+
+def test_negative_rampup_rejected():
+    with pytest.raises(ValueError, match="rampup"):
+        BenchmarkConfig(model="m", rampup=-1)
