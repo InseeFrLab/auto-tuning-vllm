@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 TWO_HOURS_IN_SECONDS = 7200
 POLL_RATE = 5
+MAX_CONSECUTIVE_DUPLICATES = 30
 
 
 class StudyController:
@@ -48,6 +49,7 @@ class StudyController:
         self.baseline_results: dict[
             int, list[float]
         ] = {}  # concurrency -> objective_values
+        self.search_space_exhausted: bool = False
 
     @staticmethod
     def get_study_identifier(study_name: str) -> str:
@@ -505,7 +507,9 @@ class StudyController:
             if self.config.baseline and self.config.baseline.enabled:
                 self._run_baseline_trials()
 
-            while self.completed_trials < total_trials:
+            while (
+                self.completed_trials < total_trials and not self.search_space_exhausted
+            ):
                 # Submit new trials up to concurrency limit
                 self._submit_available_trials(
                     remaining_trials=total_trials
@@ -527,6 +531,14 @@ class StudyController:
 
                 # Sleep before next poll cycle
                 time.sleep(poll_interval)
+
+            if self.search_space_exhausted:
+                logger.warning(
+                    "Stopping optimization early: search space appears exhausted "
+                    "(%d/%d trials completed).",
+                    self.completed_trials,
+                    total_trials,
+                )
 
             # Wait for any remaining trials
             final_cleanup_attempts = 0
@@ -617,28 +629,42 @@ class StudyController:
         self, remaining_trials: int, max_concurrent_trials: float
     ):
         """Submit new trials up to limits."""
-        while remaining_trials > 0 and len(self.active_trials) < max_concurrent_trials:
+        consecutive_duplicates = 0
+        while (
+            remaining_trials > 0
+            and len(self.active_trials) < max_concurrent_trials
+            and not self.search_space_exhausted
+        ):
             trial = self.study.ask()
+            trial_config = self._build_trial_config(trial)
 
-            # Check if these exact parameters have already been tried and failed
-            if self._is_duplicate_trial(trial.params):
+            if self._is_duplicate_trial(trial.params, trial.number):
                 log_msg = (
-                    "Trial %d has duplicate parameters from a previous failed trial. "
+                    "Trial %d has duplicate parameters from a previous trial. "
                     "Skipping: %s"
                 )
                 logger.warning(log_msg, trial.number, trial.params)
-                # Mark as failed immediately without running
                 self.study.tell(
                     trial=trial.number,
                     values=None,
                     state=TrialState.FAIL,
                 )
-                continue  # Ask for another trial
+                consecutive_duplicates += 1
+                if consecutive_duplicates >= MAX_CONSECUTIVE_DUPLICATES:
+                    self.search_space_exhausted = True
+                    logger.warning(
+                        "Search space appears exhausted after %d consecutive "
+                        "duplicate parameter suggestions.",
+                        MAX_CONSECUTIVE_DUPLICATES,
+                    )
+                    break
+                continue
+
+            consecutive_duplicates = 0
 
             # Cache trial object for setting user attributes later
             self.trial_objects[trial.number] = trial
 
-            trial_config = self._build_trial_config(trial)
             # Increasing the timeout for vLLM startup
             trial_config.vllm_startup_timeout = int(
                 self.config.static_environment_variables.get(
@@ -749,38 +775,41 @@ class StudyController:
 
         return optimization_completed_count
 
-    def _is_duplicate_trial(self, params: dict[str, int | float | str | bool]) -> bool:
+    def _is_duplicate_trial(
+        self,
+        params: dict[str, int | float | str | bool],
+        current_trial_number: int,
+    ) -> bool:
         """
-        Check if the given parameters match any previously failed trial.
+        Check if the given parameters match a previous trial in this study.
 
-        This prevents the sampler from suggesting the exact same parameter
-        combination that has already failed, which can happen despite using
-        RetryFailedTrialCallback. The callback only prevents retry of the
-        exact same trial object, but samplers can still suggest identical
-        parameter combinations as "new" trials.
+        Always skips failed/pruned optimization trials. When ``no_repeat`` is
+        enabled (default), also skips completed and running trials so the
+        sampler cannot re-run an exact parameter combination.
 
         Args:
-            params: Parameter dictionary from trial.params
+            params: Parameter dictionary from trial.params (after suggest calls)
+            current_trial_number: Optuna trial number to exclude from comparison
 
         Returns:
-            True if these parameters match a failed trial, False otherwise
+            True if these parameters match a prior trial, False otherwise
         """
-        # Get failed trials (with caching for better performance)
-        # Exclude baseline trials from duplicate check
-        failed_trials = [
-            trial
-            for trial in self.study.trials
-            if trial.state in (TrialState.FAIL, TrialState.PRUNED)
-            and not trial.user_attrs.get("is_baseline", False)
-        ]
+        duplicate_states = {TrialState.FAIL, TrialState.PRUNED}
+        if self.config.optimization.no_repeat:
+            duplicate_states |= {TrialState.COMPLETE, TrialState.RUNNING}
 
-        for past_trial in failed_trials:
-            # Compare parameter dictionaries
-            # Both dicts should have the same keys and values
+        for past_trial in self.study.trials:
+            if past_trial.number == current_trial_number:
+                continue
+            if past_trial.user_attrs.get("is_baseline", False):
+                continue
+            if past_trial.state not in duplicate_states:
+                continue
             if past_trial.params == params:
                 logger.debug(
-                    "Found duplicate parameters in failed trial %s: %s",
+                    "Found duplicate parameters in trial %s (state=%s): %s",
                     past_trial.number,
+                    past_trial.state.name,
                     params,
                 )
                 return True

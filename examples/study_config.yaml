@@ -20,6 +20,7 @@ optimization:
   #   - "inter_token_latency_ms_p95"
   sampler: "nsga2"  # Best for multi-objective optimization
   n_trials: 11
+  # no_repeat: true  # Skip parameter combinations already used (default: true)
 
 benchmark:
   benchmark_type: "guidellm"
