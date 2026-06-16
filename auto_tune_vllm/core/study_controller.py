@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 
 TWO_HOURS_IN_SECONDS = 7200
 POLL_RATE = 5
-MAX_CONSECUTIVE_DUPLICATES = 30
+MAX_CONSECUTIVE_DUPLICATES = 15
+SKIP_REASON_DUPLICATE = "duplicate_parameters"
 
 
 class StudyController:
@@ -644,11 +645,8 @@ class StudyController:
                     "Skipping: %s"
                 )
                 logger.warning(log_msg, trial.number, trial.params)
-                self.study.tell(
-                    trial=trial.number,
-                    values=None,
-                    state=TrialState.FAIL,
-                )
+                trial.set_user_attr("skip_reason", SKIP_REASON_DUPLICATE)
+                self.study.tell(trial.number, state=TrialState.PRUNED)
                 consecutive_duplicates += 1
                 if consecutive_duplicates >= MAX_CONSECUTIVE_DUPLICATES:
                     self.search_space_exhausted = True
