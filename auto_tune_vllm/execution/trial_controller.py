@@ -20,8 +20,10 @@ except ImportError:
 
 from ..benchmarks.guidellm_multimodal import GuideLLMMultimodalBenchmark
 from ..benchmarks.providers import BenchmarkProvider, GuideLLMBenchmark
+from ..core.config import MetricsScrapingConfig, VLLMMetricsScrapingConfig
 from ..core.trial import ExecutionInfo, TrialConfig, TrialResult
 from ..logging.manager import CentralizedLogger
+from ..metrics_scraping.vllm_metrics import VLLMMetricsCollector
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +86,7 @@ class BaseTrialController(TrialController):
         self._health_check_failure_reason = None
         self._benchmark_process = None  # Track running benchmark process
         self._cancellation_requested = False  # Flag for external cancellation requests
+        self.vllm_metrics_collector: VLLMMetricsCollector | None = None
 
     def _validate_environment(self, trial_config: Optional[TrialConfig] = None) -> None:
         """Validate that all required packages are available on this worker."""
@@ -772,6 +775,7 @@ class BaseTrialController(TrialController):
                 benchmark_process = self.benchmark_provider.start_benchmark(
                     server_info["url"], trial_config.benchmark_config
                 )
+                self._start_vllm_metrics_collector(trial_config, server_info, logger)
                 return benchmark_process, time.time()
 
         except requests.exceptions.RequestException as e:
@@ -812,6 +816,10 @@ class BaseTrialController(TrialController):
             # Parse benchmark results
             benchmark_result = self.benchmark_provider.parse_results()
 
+            vllm_metrics = self._stop_vllm_metrics_collector()
+            if vllm_metrics:
+                benchmark_result.update(vllm_metrics)
+
             # Check if vLLM server died during benchmark
             self._check_health_status()
 
@@ -841,6 +849,46 @@ class BaseTrialController(TrialController):
             raise RuntimeError(f"Benchmark timed out after {max_benchmark_time}s")
 
         return None  # Still running, continue polling
+
+    def _get_metrics_scraping_config(
+        self, trial_config: TrialConfig
+    ) -> VLLMMetricsScrapingConfig:
+        if trial_config.metrics_scraping_config is not None:
+            return trial_config.metrics_scraping_config.vllm
+        return MetricsScrapingConfig().vllm
+
+    def _start_vllm_metrics_collector(
+        self,
+        trial_config: TrialConfig,
+        server_info: dict,
+        controller_logger,
+    ) -> None:
+        optimization_config = trial_config.optimization_config
+        if optimization_config is None:
+            return
+
+        required = optimization_config.resolve_required_vllm_metrics()
+        if not required:
+            return
+
+        scraping = self._get_metrics_scraping_config(trial_config)
+        metrics_url = server_info["url"].replace("/v1", "/metrics")
+        self.vllm_metrics_collector = VLLMMetricsCollector(
+            metrics_url=metrics_url,
+            required=required,
+            interval_seconds=scraping.scrape_interval_seconds,
+            benchmark_config=trial_config.benchmark_config,
+            align_with_benchmark_window=scraping.align_with_benchmark_window,
+            custom_logger=controller_logger,
+        )
+        self.vllm_metrics_collector.start()
+
+    def _stop_vllm_metrics_collector(self) -> dict[str, float]:
+        if self.vllm_metrics_collector is None:
+            return {}
+        metrics = self.vllm_metrics_collector.stop_and_collect()
+        self.vllm_metrics_collector = None
+        return metrics
 
     def _start_vllm_server(self, trial_config: TrialConfig) -> dict:
         """Start vLLM server with trial parameters."""
@@ -1274,6 +1322,8 @@ class BaseTrialController(TrialController):
         self._stop_health_monitoring()
         controller_logger.debug("Trial Controller: Health monitoring stopped")
         self._flush_logger_handlers(controller_logger)
+
+        self._stop_vllm_metrics_collector()
 
         # Terminate any running benchmark process
         if self.benchmark_provider:

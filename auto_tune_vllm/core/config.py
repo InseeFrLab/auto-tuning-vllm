@@ -103,6 +103,63 @@ class ObjectiveConfig:
             )
 
 
+VLLM_LOG_METRIC_STATS = (
+    "std_dev",
+    "median",
+    "mean",
+    "p99",
+    "p95",
+    "p90",
+    "min",
+    "max",
+)
+
+
+def parse_vllm_log_metric_id(name: str) -> tuple[str, str]:
+    """Parse ``vllm_<prometheus_name>_<stat>`` into (prometheus_name, stat)."""
+    if not name.startswith("vllm_"):
+        raise ValueError(
+            f"Invalid vLLM log metric id {name!r}: must start with 'vllm_'"
+        )
+    remainder = name[len("vllm_") :]
+    for stat in VLLM_LOG_METRIC_STATS:
+        suffix = f"_{stat}"
+        if remainder.endswith(suffix):
+            prometheus_name = remainder[: -len(suffix)]
+            if not prometheus_name:
+                raise ValueError(
+                    f"Invalid vLLM log metric id {name!r}: "
+                    f"prometheus name must be non-empty"
+                )
+            return prometheus_name, stat
+    raise ValueError(
+        f"Invalid vLLM log metric id {name!r}: "
+        f"unknown stat suffix; valid stats: {sorted(VLLM_LOG_METRIC_STATS)}"
+    )
+
+
+@dataclass
+class VLLMMetricsScrapingConfig:
+    """Configuration for scraping vLLM Prometheus metrics during benchmarks."""
+
+    scrape_interval_seconds: float = 10.0
+    align_with_benchmark_window: bool = True
+
+    def __post_init__(self) -> None:
+        if self.scrape_interval_seconds <= 0:
+            raise ValueError(
+                "metrics_scraping.vllm.scrape_interval_seconds must be > 0; "
+                f"got {self.scrape_interval_seconds}"
+            )
+
+
+@dataclass
+class MetricsScrapingConfig:
+    """Metrics scraping configuration."""
+
+    vllm: VLLMMetricsScrapingConfig = field(default_factory=VLLMMetricsScrapingConfig)
+
+
 @dataclass
 class OptimizationConfig:
     """Optimization configuration with support for new structured format.
@@ -156,12 +213,25 @@ class OptimizationConfig:
                     "log_metrics entries must be strings, "
                     f"got {type(name).__name__}: {name!r}"
                 )
-            if name not in valid:
+            if name.startswith("vllm_"):
+                parse_vllm_log_metric_id(name)
+            elif name not in valid:
                 raise ValueError(
                     f"Unknown metric {name!r} in log_metrics. "
-                    f"Each entry must be a single identifier from "
-                    f"{sorted(valid)}"
+                    f"Each entry must be a GuideLLM identifier from "
+                    f"{sorted(valid)} or a vLLM identifier "
+                    f"vllm_<prometheus_name>_<stat>"
                 )
+
+    def resolve_required_vllm_metrics(self) -> dict[str, set[str]]:
+        """Return Prometheus metrics and stats required by log_metrics (P1 only)."""
+        required: dict[str, set[str]] = {}
+        for name in self.log_metrics or []:
+            if not name.startswith("vllm_"):
+                continue
+            prometheus_name, stat = parse_vllm_log_metric_id(name)
+            required.setdefault(prometheus_name, set()).add(stat)
+        return required
 
     def _apply_preset(self):
         """Apply preset optimization configurations."""
@@ -357,6 +427,9 @@ class StudyConfig:
         False  # Flag to indicate explicit name usage (affects load_if_exists behavior)
     )
     constraints: list[Constraint] = field(default_factory=list)
+    metrics_scraping: MetricsScrapingConfig = field(
+        default_factory=MetricsScrapingConfig
+    )
 
     @classmethod
     def from_file(
@@ -606,6 +679,12 @@ class ConfigValidator:
         optimization = OptimizationConfig(**opt_config_data)
         benchmark = BenchmarkConfig(**raw_config["benchmark"])
 
+        metrics_scraping_data = raw_config.get("metrics_scraping") or {}
+        vllm_scraping_data = metrics_scraping_data.get("vllm") or {}
+        metrics_scraping = MetricsScrapingConfig(
+            vllm=VLLMMetricsScrapingConfig(**vllm_scraping_data),
+        )
+
         # Handle optional database_url and storage_file
         database_url = study_info.get("database_url")
         storage_file = study_info.get("storage_file")
@@ -670,6 +749,7 @@ class ConfigValidator:
             study_prefix=study_prefix,
             use_explicit_name=use_explicit_name,
             constraints=constraints,
+            metrics_scraping=metrics_scraping,
         )
 
     def _infer_parameter_type(self, parameter_config: dict[str, Any]):
