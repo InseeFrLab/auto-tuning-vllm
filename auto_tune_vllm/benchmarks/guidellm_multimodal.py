@@ -106,19 +106,17 @@ class GuideLLMMultimodalBenchmark(GuideLLMBenchmark):
         cmd = [
             sys.executable,
             "-m",
-            "auto_tune_vllm.benchmarks._guidellm_shim",
-            "benchmark",
-            "run",
+            "auto_tune_vllm.benchmarks._guidellm_multimodal_runner",
             "--target",
             model_url,
             "--model",
             config.model,
             "--processor",
             processor,
-            "--backend",
-            "openai_http",
-            "--profile",
-            "concurrent",
+            "--dataset",
+            config.dataset,
+            "--request-format",
+            config.request_format or "chat_completions",
             "--max-seconds",
             str(config.max_seconds),
             "--rate",
@@ -129,10 +127,9 @@ class GuideLLMMultimodalBenchmark(GuideLLMBenchmark):
             '{"trust-remote-code":"true"}',
             "--sample-requests",
             str(config.sample_requests),
+            "--data-preprocessors",
+            ",".join(config.data_preprocessors),
         ]
-
-        if config.request_format is not None:
-            cmd.extend(["--request-format", config.request_format])
 
         if config.warmup is not None:
             cmd.extend(["--warmup", str(config.warmup)])
@@ -141,42 +138,27 @@ class GuideLLMMultimodalBenchmark(GuideLLMBenchmark):
 
         if config.data_args is not None:
             cmd.extend(["--data-args", json.dumps(config.data_args)])
-
-        preprocessors = list(config.data_preprocessors)
-        if "generative_column_mapper" not in preprocessors:
-            preprocessors.insert(0, "generative_column_mapper")
-        cmd.extend(["--data-preprocessors", ",".join(preprocessors)])
-
-        merged_preprocessor_kwargs: dict = {}
-        if config.data_preprocessors_kwargs is not None:
-            merged_preprocessor_kwargs.update(config.data_preprocessors_kwargs)
         if config.data_column_mapper is not None:
-            merged_preprocessor_kwargs["column_mappings"] = (
-                self._extract_column_mappings(config)
+            cmd.extend(
+                [
+                    "--data-column-mapper",
+                    json.dumps(config.data_column_mapper),
+                ]
             )
-        if merged_preprocessor_kwargs:
+        if config.data_preprocessors_kwargs is not None:
             cmd.extend(
                 [
                     "--data-preprocessors-kwargs",
-                    json.dumps(merged_preprocessor_kwargs),
+                    json.dumps(config.data_preprocessors_kwargs),
                 ]
             )
         if config.data_finalizer is not None:
             cmd.extend(["--data-finalizer", config.data_finalizer])
 
         if config.dataset.startswith("hf://"):
-            dataset_name = config.dataset[5:]
-            cmd.extend(["--data", dataset_name])
+            return cmd
         else:
             if not os.path.exists(config.dataset):
                 raise FileNotFoundError(f"Dataset file not found: {config.dataset}")
-            cmd.extend(["--data", config.dataset])
 
         return cmd
-
-    @staticmethod
-    def _extract_column_mappings(config: BenchmarkConfig) -> dict:
-        mapper = config.data_column_mapper or {}
-        if "column_mappings" in mapper:
-            return mapper["column_mappings"]
-        return mapper
