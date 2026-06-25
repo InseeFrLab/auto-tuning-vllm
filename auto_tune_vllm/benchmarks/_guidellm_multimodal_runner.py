@@ -21,15 +21,13 @@ def _parse_json_arg(raw: str | None) -> dict[str, Any] | None:
 def _normalize_column_mapper(mapper: dict[str, Any] | None) -> str | dict[str, Any]:
     if not mapper:
         return "generative_column_mapper"
-    if "type" in mapper:
-        return mapper
-    if "kind" in mapper:
-        normalized = dict(mapper)
-        normalized["type"] = normalized.pop("kind")
-        return normalized
     if "column_mappings" in mapper:
-        return {"type": "generative_column_mapper", **mapper}
-    return {"type": "generative_column_mapper", "column_mappings": mapper}
+        return mapper["column_mappings"]
+    if "type" in mapper or "kind" in mapper:
+        return {
+            key: value for key, value in mapper.items() if key not in {"type", "kind"}
+        }
+    return mapper
 
 
 def _build_base_dirs(
