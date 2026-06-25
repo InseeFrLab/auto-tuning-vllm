@@ -302,7 +302,7 @@ For vision models served via vLLM, point `dataset` at a JSONL file where each li
 |-------|-------------|
 | `benchmark_type` | Must be `"guidellm_multimodal"` for multi-image JSONL workloads |
 | `request_format` | OpenAI request format for the backend, e.g. `"chat_completions"` for VLMs |
-| `data_column_mapper` | Maps JSONL columns to GuideLLM fields, e.g. `text_column: prompt`, `image_column: image` |
+| `data_column_mapper` | Maps JSONL columns to GuideLLM fields under `column_mappings`, e.g. `text_column: prompt`, `image_column: image` |
 | `data_preprocessors` | Ordered list, e.g. `["flatten_image_lists", "encode_media"]` |
 | `data_preprocessors_kwargs` | Arguments passed to preprocessors, e.g. `base_dirs` for resolving relative image paths |
 | `data_finalizer` | Optional finalizer (GuideLLM default: `"generative"`) |

@@ -22,16 +22,24 @@ benchmark:
   benchmark_type: "guidellm_multimodal"
   model: "Qwen/Qwen2-VL-2B-Instruct"
   max_seconds: 200
-  rate: 8
+  rate: 1
+  sample_requests: 5
   dataset: "examples/vlm_multi_image/data.jsonl"
   request_format: "chat_completions"
   data_column_mapper:
-    text_column: "prompt"
-    image_column: "image"
-    output_tokens_count_column: "output_tokens_count"
+    column_mappings:
+      text_column: "prompt"
+      image_column: "image"
+      output_tokens_count_column: "output_tokens_count"
   data_preprocessors:
     - "flatten_image_lists"
     - "encode_media"
+  # Resolve relative image paths from the JSONL against the dataset folder.
+  # base_dirs is resolved by validation.py against the study YAML directory,
+  # so this works regardless of the process CWD (Colab, container, etc.).
+  data_preprocessors_kwargs:
+    base_dirs:
+      - "examples/vlm_multi_image"
 
 logging:
   file_path: "./auto-tune-vllm-logs"
