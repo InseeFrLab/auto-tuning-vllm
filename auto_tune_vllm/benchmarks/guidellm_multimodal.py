@@ -141,19 +141,24 @@ class GuideLLMMultimodalBenchmark(GuideLLMBenchmark):
 
         if config.data_args is not None:
             cmd.extend(["--data-args", json.dumps(config.data_args)])
-        if config.data_column_mapper is not None:
-            cmd.extend(
-                [
-                    "--data-column-mapper",
-                    json.dumps(self._normalize_data_column_mapper(config)),
-                ]
-            )
-        cmd.extend(["--data-preprocessors", ",".join(config.data_preprocessors)])
+
+        preprocessors = list(config.data_preprocessors)
+        if "generative_column_mapper" not in preprocessors:
+            preprocessors.insert(0, "generative_column_mapper")
+        cmd.extend(["--data-preprocessors", ",".join(preprocessors)])
+
+        merged_preprocessor_kwargs: dict = {}
         if config.data_preprocessors_kwargs is not None:
+            merged_preprocessor_kwargs.update(config.data_preprocessors_kwargs)
+        if config.data_column_mapper is not None:
+            merged_preprocessor_kwargs["column_mappings"] = (
+                self._extract_column_mappings(config)
+            )
+        if merged_preprocessor_kwargs:
             cmd.extend(
                 [
                     "--data-preprocessors-kwargs",
-                    json.dumps(config.data_preprocessors_kwargs),
+                    json.dumps(merged_preprocessor_kwargs),
                 ]
             )
         if config.data_finalizer is not None:
@@ -170,10 +175,8 @@ class GuideLLMMultimodalBenchmark(GuideLLMBenchmark):
         return cmd
 
     @staticmethod
-    def _normalize_data_column_mapper(config: BenchmarkConfig) -> dict:
+    def _extract_column_mappings(config: BenchmarkConfig) -> dict:
         mapper = config.data_column_mapper or {}
-        if "kind" in mapper:
-            return mapper
         if "column_mappings" in mapper:
-            return {"kind": "generative_column_mapper", **mapper}
-        return {"kind": "generative_column_mapper", "column_mappings": mapper}
+            return mapper["column_mappings"]
+        return mapper

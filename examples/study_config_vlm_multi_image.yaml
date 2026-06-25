@@ -6,7 +6,7 @@
 # Replace dataset path below if you copy the JSONL elsewhere.
 
 study:
-  name: "qwen2_vl_2b_multi_image"
+  prefix: "qwen2_vl_2b_multi_image"
 
 optimization:
   approach: "multi_objective"
@@ -27,12 +27,12 @@ benchmark:
   dataset: "examples/vlm_multi_image/data.jsonl"
   request_format: "chat_completions"
   data_column_mapper:
-    kind: "generative_column_mapper"
     column_mappings:
       text_column: "prompt"
       image_column: "image"
       output_tokens_count_column: "output_tokens_count"
   data_preprocessors:
+    - "generative_column_mapper"
     - "flatten_image_lists"
     - "encode_media"
   # Resolve relative image paths from the JSONL against the dataset folder.
