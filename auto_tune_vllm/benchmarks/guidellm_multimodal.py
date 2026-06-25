@@ -172,6 +172,8 @@ class GuideLLMMultimodalBenchmark(GuideLLMBenchmark):
     @staticmethod
     def _normalize_data_column_mapper(config: BenchmarkConfig) -> dict:
         mapper = config.data_column_mapper or {}
-        if "column_mappings" in mapper:
+        if "kind" in mapper:
             return mapper
-        return {"column_mappings": mapper}
+        if "column_mappings" in mapper:
+            return {"kind": "generative_column_mapper", **mapper}
+        return {"kind": "generative_column_mapper", "column_mappings": mapper}

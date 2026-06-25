@@ -27,6 +27,7 @@ benchmark:
   dataset: "examples/vlm_multi_image/data.jsonl"
   request_format: "chat_completions"
   data_column_mapper:
+    kind: "generative_column_mapper"
     column_mappings:
       text_column: "prompt"
       image_column: "image"
