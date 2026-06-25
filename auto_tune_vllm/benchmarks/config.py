@@ -37,6 +37,14 @@ class BenchmarkConfig:
     # Max detailed request samples stored in benchmark JSON output (GuideLLM --sample-requests).
     sample_requests: int = 0
 
+    # Multimodal / advanced data pipeline (GuideLLM 0.6+, benchmark_type: guidellm_multimodal)
+    data_args: Optional[dict] = None
+    data_column_mapper: Optional[dict] = None
+    data_preprocessors: Optional[list[str]] = None
+    data_preprocessors_kwargs: Optional[dict] = None
+    data_finalizer: Optional[str] = None
+    request_format: Optional[str] = None
+
     # Set in benchmark section of study config
     # Logging level for GuideLLM
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"

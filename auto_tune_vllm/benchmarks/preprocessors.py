@@ -1,0 +1,60 @@
+"""Custom GuideLLM dataset preprocessors registered for CLI use."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from guidellm.data.preprocessors.preprocessor import (
+    DatasetPreprocessor,
+    PreprocessorRegistry,
+)
+
+__all__ = ["FlattenImageListsPreprocessor", "resolve_image_path"]
+
+
+def resolve_image_path(path: str, base_dirs: list[Path]) -> str:
+    """Resolve a local image path against optional base directories."""
+    if path.startswith(("http://", "https://", "data:image/")):
+        return path
+
+    candidate = Path(path)
+    if candidate.is_file():
+        return str(candidate.resolve())
+
+    for base in base_dirs:
+        resolved = base / path
+        if resolved.is_file():
+            return str(resolved.resolve())
+
+    return path
+
+
+@PreprocessorRegistry.register("flatten_image_lists")
+class FlattenImageListsPreprocessor(DatasetPreprocessor):
+    """Expand nested image lists so each image is encoded separately."""
+
+    def __init__(self, base_dirs: list[str] | None = None, **_: Any) -> None:
+        self.base_dirs = [Path(directory) for directory in (base_dirs or [])]
+
+    def __call__(self, items: list[dict[str, list[Any]]]) -> list[dict[str, list[Any]]]:
+        for turn in items:
+            image_column = turn.get("image_column")
+            if not image_column:
+                continue
+
+            flattened: list[Any] = []
+            for value in image_column:
+                if isinstance(value, list):
+                    flattened.extend(item for item in value if item)
+                elif value:
+                    flattened.append(value)
+
+            turn["image_column"] = [
+                resolve_image_path(image, self.base_dirs)
+                if isinstance(image, str)
+                else image
+                for image in flattened
+            ]
+
+        return items
