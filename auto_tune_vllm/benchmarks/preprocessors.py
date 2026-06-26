@@ -43,8 +43,10 @@ class FlattenImageListsPreprocessor(DatasetPreprocessor):
             if not image_column:
                 continue
 
+            values = [image_column] if isinstance(image_column, str) else image_column
+
             flattened: list[Any] = []
-            for value in image_column:
+            for value in values:
                 if isinstance(value, list):
                     flattened.extend(item for item in value if item)
                 elif value:

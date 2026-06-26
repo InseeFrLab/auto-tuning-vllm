@@ -33,9 +33,9 @@ benchmark:
   data_preprocessors:
     - "flatten_image_lists"
     - "encode_media"
-  # Resolve relative image paths from the JSONL against the dataset folder.
-  # base_dirs is resolved by validation.py against the study YAML directory,
-  # so this works regardless of the process CWD (Colab, container, etc.).
+  # Resolve relative image paths from the JSONL. Paths in base_dirs are used as
+  # provided (relative to the process CWD unless absolute). The multimodal runner
+  # also searches next to the dataset file and the current working directory.
   data_preprocessors_kwargs:
     base_dirs:
       - "examples/vlm_multi_image"

@@ -289,14 +289,14 @@ benchmark:
   ...
 ```
 
-For vision models served via vLLM, point `dataset` at a JSONL file where each line has a text prompt and an `image` field that may contain one or more paths:
+For vision models served via vLLM, point `dataset` at a JSONL file where each line has a text prompt and an `image` field that may be a single path/URL string or a list of paths:
 
 ```jsonl
-{"prompt": "Describe this image", "image": ["images_test/9.png"]}
+{"prompt": "Describe this image", "image": "images_test/9.png"}
 {"prompt": "Compare these images", "image": ["images_test/9.png", "images_test/11.png"]}
 ```
 
-`guidellm_multimodal` invokes GuideLLM 0.6+ via `benchmark run` and registers the custom preprocessor `flatten_image_lists` before `encode_media`. Setting `data_preprocessors` overrides GuideLLM defaults, so list both preprocessors explicitly.
+`guidellm_multimodal` launches `auto_tune_vllm.benchmarks._guidellm_multimodal_runner`, which calls GuideLLM 0.6+ through the Python API (`benchmark_generative_text`). The runner resolves the custom `flatten_image_lists` preprocessor locally and passes remaining preprocessors (e.g. `encode_media`) to GuideLLM by name. Setting `data_preprocessors` overrides GuideLLM defaults, so list both preprocessors explicitly.
 
 | Field | Description |
 |-------|-------------|
@@ -304,7 +304,7 @@ For vision models served via vLLM, point `dataset` at a JSONL file where each li
 | `request_format` | OpenAI request format for the backend, e.g. `"chat_completions"` for VLMs |
 | `data_column_mapper` | Maps JSONL columns to GuideLLM fields as a flat mapping, e.g. `text_column: prompt`, `image_column: image` |
 | `data_preprocessors` | Ordered list, e.g. `["flatten_image_lists", "encode_media"]` |
-| `data_preprocessors_kwargs` | Arguments passed to preprocessors, e.g. `base_dirs` for resolving relative image paths |
+| `data_preprocessors_kwargs` | Arguments passed to preprocessors, e.g. `base_dirs` for resolving relative image paths (used as provided; for local JSONL datasets the runner also searches `Path.cwd()` and the dataset file's parent directory) |
 | `data_finalizer` | Optional finalizer (GuideLLM default: `"generative"`) |
 | `data_args` | Optional HuggingFace `load_dataset` arguments when using `hf://` datasets |
 
