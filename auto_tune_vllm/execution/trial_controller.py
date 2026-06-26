@@ -18,6 +18,7 @@ try:
 except ImportError:
     ray = None  # type: ignore[assignment]
 
+from ..benchmarks.guidellm_multimodal import GuideLLMMultimodalBenchmark
 from ..benchmarks.providers import BenchmarkProvider, GuideLLMBenchmark
 from ..core.trial import ExecutionInfo, TrialConfig, TrialResult
 from ..logging.manager import CentralizedLogger
@@ -540,6 +541,8 @@ class BaseTrialController(TrialController):
 
         if benchmark_type == "guidellm":
             return GuideLLMBenchmark()
+        if benchmark_type == "guidellm_multimodal":
+            return GuideLLMMultimodalBenchmark()
         else:
             # Import custom provider by name
             # This enables extensibility for custom benchmarks
@@ -1132,7 +1135,8 @@ class BaseTrialController(TrialController):
                 f"vLLM server health check failed: {self._health_check_failure_reason}"
             )
 
-    def evaluate_metric_expression(self,
+    def evaluate_metric_expression(
+        self,
         expression: str,
         metric_values: dict[str, float],
     ) -> float:
@@ -1153,12 +1157,12 @@ class BaseTrialController(TrialController):
 
         # Allowed operators
         ALLOWED_OPERATORS = {
-            ast.Add: operator.add,       # +
-            ast.Sub: operator.sub,       # -
-            ast.Mult: operator.mul,      # *
-            ast.Div: operator.truediv,   # /
-            ast.Pow: operator.pow,       # **
-            ast.USub: operator.neg,      # -x (unary)
+            ast.Add: operator.add,  # +
+            ast.Sub: operator.sub,  # -
+            ast.Mult: operator.mul,  # *
+            ast.Div: operator.truediv,  # /
+            ast.Pow: operator.pow,  # **
+            ast.USub: operator.neg,  # -x (unary)
         }
 
         def _eval(node: ast.AST) -> float:
@@ -1184,7 +1188,9 @@ class BaseTrialController(TrialController):
                 case ast.UnaryOp(op=op, operand=operand):
                     op_type = type(op)
                     if op_type not in ALLOWED_OPERATORS:
-                        raise ValueError(f"Unary operator not allowed: {op_type.__name__}")
+                        raise ValueError(
+                            f"Unary operator not allowed: {op_type.__name__}"
+                        )
                     return ALLOWED_OPERATORS[op_type](_eval(operand))
 
                 case _:
@@ -1194,7 +1200,6 @@ class BaseTrialController(TrialController):
 
         tree = ast.parse(expression, mode="eval")
         return _eval(tree.body)
-
 
     def _extract_objectives(
         self, benchmark_result: dict, optimization_config=None
@@ -1247,9 +1252,7 @@ class BaseTrialController(TrialController):
                 metric_values[dict_key] = float_value
 
             # Evaluate the objective expression against the metric values
-            objective_value = self.evaluate_metric_expression(
-                obj.metric, metric_values
-            )
+            objective_value = self.evaluate_metric_expression(obj.metric, metric_values)
             objective_values.append(objective_value)
 
         return objective_values

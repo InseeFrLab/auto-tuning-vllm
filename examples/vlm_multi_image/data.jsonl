@@ -1,0 +1,5 @@
+{"prompt": "Describe this image.", "image": ["image1.png"], "output_tokens_count": 128}
+{"prompt": "What do you see in this photo?", "image": ["image2.png"], "output_tokens_count": 64}
+{"prompt": "Compare these two images and describe their differences.", "image": ["image1.png", "image2.png"], "output_tokens_count": 256}
+{"prompt": "Describe the main colors and subjects in this photo.", "image": ["image1.png"], "output_tokens_count": 96}
+{"prompt": "Compare these two images.", "image": ["image1.png", "image2.png"], "output_tokens_count": 192}

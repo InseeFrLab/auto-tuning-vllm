@@ -217,7 +217,7 @@ The `benchmark` section controls how performance measurements are conducted. Thi
 ### Core Benchmark Settings
 
 #### `benchmark_type` (string, optional)
-The benchmarking framework to use. Currently only "guidellm" is supported. Defaults to "guidellm".
+The benchmarking framework to use. Supported values are `"guidellm"` (default) and `"guidellm_multimodal"` (for VLM/multi-image workloads).
 
 #### `model` (string, required)
 The HuggingFace model identifier to benchmark. This should match the model you plan to serve in production. Examples:
@@ -273,9 +273,53 @@ Maximum output length in tokens. Default: 3072
 ##### `dataset` (string)
 Path to a real dataset file or HuggingFace dataset identifier. Supported formats:
 - Local JSONL files: `"path/to/dataset.jsonl"`
-- HuggingFace datasets: `"huggingface/dataset_name"`
+- HuggingFace datasets: `"hf://dataset_name"` (prefix with `hf://`)
 
 When using real datasets, the `prompt_tokens` and `output_tokens` settings are ignored.
+
+#### Multimodal Datasets (VLM / multi-image)
+
+Use a **separate benchmark provider** so the default `guidellm` path stays unchanged:
+
+```yaml
+benchmark:
+  benchmark_type: "guidellm_multimodal"  # not "guidellm"
+  model: "Qwen/Qwen2-VL-2B-Instruct"
+  dataset: "/path/to/data.jsonl"
+  ...
+```
+
+For vision models served via vLLM, point `dataset` at a JSONL file where each line has a text prompt and an `image` field that may be a single path/URL string or a list of paths:
+
+```jsonl
+{"prompt": "Describe this image", "image": "images_test/9.png"}
+{"prompt": "Compare these images", "image": ["images_test/9.png", "images_test/11.png"]}
+```
+
+`guidellm_multimodal` launches `auto_tune_vllm.benchmarks._guidellm_multimodal_runner`, which calls GuideLLM 0.6+ through the Python API (`benchmark_generative_text`). The runner resolves the custom `flatten_image_lists` preprocessor locally and passes remaining preprocessors (e.g. `encode_media`) to GuideLLM by name. Setting `data_preprocessors` overrides GuideLLM defaults, so list both preprocessors explicitly.
+
+| Field | Description |
+|-------|-------------|
+| `benchmark_type` | Must be `"guidellm_multimodal"` for multi-image JSONL workloads |
+| `request_format` | OpenAI request format for the backend, e.g. `"chat_completions"` for VLMs |
+| `data_column_mapper` | Maps JSONL columns to GuideLLM fields as a flat mapping, e.g. `text_column: prompt`, `image_column: image` |
+| `data_preprocessors` | Ordered list, e.g. `["flatten_image_lists", "encode_media"]` |
+| `data_preprocessors_kwargs` | Arguments passed to preprocessors, e.g. `base_dirs` for resolving relative image paths (used as provided; for local JSONL datasets the runner also searches `Path.cwd()` and the dataset file's parent directory) |
+| `data_finalizer` | Optional finalizer (GuideLLM default: `"generative"`) |
+| `data_args` | Optional HuggingFace `load_dataset` arguments when using `hf://` datasets |
+
+Set vLLM static parameters so the server accepts multiple images per request, for example `limit_mm_per_prompt: '{"image": 4}'`.
+
+Tune multimodal server memory with `mm_processor_cache_gb` in the `parameters` section (passed to vLLM as `--mm-processor-cache-gb`). Example:
+
+```yaml
+parameters:
+  mm_processor_cache_gb:
+    enabled: true
+    options: [0, 2, 4, 8]
+```
+
+See [examples/study_config_vlm_multi_image.yaml](../examples/study_config_vlm_multi_image.yaml) and [examples/vlm_multi_image/data.jsonl](../examples/vlm_multi_image/data.jsonl) for a full Qwen2-VL-2B-Instruct example.
 
 ### Load Configuration
 

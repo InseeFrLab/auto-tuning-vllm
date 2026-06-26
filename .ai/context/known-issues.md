@@ -5,6 +5,7 @@ Update this file when merging fixes (no separate triage skill).
 | Title | Status | Link | Component | Next action |
 |-------|--------|------|-----------|-------------|
 | GuideLLM + vLLM ≥ 0.20 | open | [#19](https://github.com/InseeFrLab/auto-tuning-vllm/issues/19) | `providers.py`, deps | Merge #17 or document pins |
+| GuideLLM version pin | documented | `pyproject.toml` | deps | Pinned to `>=0.6.0,<0.7.0`; multimodal path uses `_guidellm_multimodal_runner` (GuideLLM Python API) |
 | GuideLLM + transformers ≥ 5 | open | [#15](https://github.com/InseeFrLab/auto-tuning-vllm/issues/15) | GuideLLM | Reproduce; track upstream |
 | Orphan vLLM on parent stop | open | [#2](https://github.com/InseeFrLab/auto-tuning-vllm/issues/2) | `trial_controller.py` | Merge #13 |
 | Local backend cleanup | fix pending | [#13](https://github.com/InseeFrLab/auto-tuning-vllm/pull/13) | `backends.py` | Merge PR |

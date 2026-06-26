@@ -1,0 +1,56 @@
+# Example study for multi-image VLM benchmarking with GuideLLM.
+#
+# Sample JSONL: examples/vlm_multi_image/data.jsonl
+# Each line has prompt, image (URL or path, single or list), and output_tokens_count.
+#
+# Replace dataset path below if you copy the JSONL elsewhere.
+
+study:
+  prefix: "qwen2_vl_2b_multi_image"
+
+optimization:
+  approach: "multi_objective"
+  objectives:
+    - metric: "output_tokens_per_second_median"
+      direction: "maximize"
+    - metric: "time_to_first_token_ms_p95"
+      direction: "minimize"
+  sampler: "nsga2"
+  n_trials: 11
+
+benchmark:
+  benchmark_type: "guidellm_multimodal"
+  model: "Qwen/Qwen2-VL-2B-Instruct"
+  max_seconds: 200
+  rate: 1
+  sample_requests: 5
+  dataset: "examples/vlm_multi_image/data.jsonl"
+  request_format: "chat_completions"
+  data_column_mapper:
+    text_column: "prompt"
+    image_column: "image"
+    output_tokens_count_column: "output_tokens_count"
+  data_preprocessors:
+    - "flatten_image_lists"
+    - "encode_media"
+  # Resolve relative image paths from the JSONL. Paths in base_dirs are used as
+  # provided (relative to the process CWD unless absolute). The multimodal runner
+  # also searches next to the dataset file and the current working directory.
+  data_preprocessors_kwargs:
+    base_dirs:
+      - "examples/vlm_multi_image"
+
+logging:
+  file_path: "./auto-tune-vllm-logs"
+  log_level: "INFO"
+
+static_parameters:
+  limit_mm_per_prompt: '{"image": 6}'
+  max_model_len: 32000
+  trust_remote_code: true
+  mm_processor_cache_gb: 0
+
+parameters:
+  max_num_batched_tokens:
+    enabled: true
+    options: [1024, 2048, 4096]
