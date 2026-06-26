@@ -136,6 +136,8 @@ List of optimization objectives. Each objective specifies:
 
 **`metric`** (string, required): The performance metric to optimize. Available metrics:
 - `output_tokens_per_second`: Token generation throughput (tokens/sec)
+- `prompt_tokens_per_second`: Prompt (input/prefill) token throughput (tokens/sec)
+- `tokens_per_second`: Combined prompt + output token throughput (tokens/sec)
 - `request_latency`: End-to-end request latency (milliseconds)
 - `time_to_first_token_ms`: Time until first token appears (milliseconds)
 - `inter_token_latency_ms`: Latency between consecutive tokens (milliseconds)
@@ -195,6 +197,7 @@ optimization:
   preset: "balanced"
   n_trials: 50
   log_metrics:
+    - "prompt_tokens_per_second_median"
     - "inter_token_latency_ms_p95"
     - "time_to_first_token_ms_median"
 ```

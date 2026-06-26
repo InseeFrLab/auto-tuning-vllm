@@ -50,6 +50,8 @@ The recommended default percentile is `_median`.
 | Base metric | Description | Typical Goal | Units |
 |---|---|---|---|
 | `output_tokens_per_second` | Token generation throughput | Maximize | tokens/sec |
+| `prompt_tokens_per_second` | Prompt (input/prefill) token throughput | Maximize | tokens/sec |
+| `tokens_per_second` | Combined prompt + output token throughput | Maximize | tokens/sec |
 | `request_latency` | End-to-end request latency | Minimize | milliseconds |
 | `time_to_first_token_ms` | Time until first token (TTFT) | Minimize | milliseconds |
 | `inter_token_latency_ms` | Latency between tokens (ITL) | Minimize | milliseconds |

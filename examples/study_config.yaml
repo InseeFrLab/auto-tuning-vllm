@@ -17,6 +17,7 @@ optimization:
   # ObjectiveConfig metric identifiers (for example, "inter_token_latency_ms_p95"),
   # not arithmetic expressions.
   # log_metrics:
+  #   - "prompt_tokens_per_second_median"
   #   - "inter_token_latency_ms_p95"
   sampler: "nsga2"  # Best for multi-objective optimization
   n_trials: 11
