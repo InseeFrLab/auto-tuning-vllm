@@ -217,7 +217,7 @@ The `benchmark` section controls how performance measurements are conducted. Thi
 ### Core Benchmark Settings
 
 #### `benchmark_type` (string, optional)
-The benchmarking framework to use. Currently only "guidellm" is supported. Defaults to "guidellm".
+The benchmarking framework to use. Supported values are `"guidellm"` (default) and `"guidellm_multimodal"` (for VLM/multi-image workloads).
 
 #### `model` (string, required)
 The HuggingFace model identifier to benchmark. This should match the model you plan to serve in production. Examples:
