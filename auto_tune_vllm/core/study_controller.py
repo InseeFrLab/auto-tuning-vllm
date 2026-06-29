@@ -18,7 +18,7 @@ from optuna.trial import TrialState
 
 from ..execution.backends import ExecutionBackend, JobHandle
 from ..logging.manager import CentralizedLogger
-from .config import StudyConfig
+from .config import MetricsScrapingConfig, StudyConfig
 from .parameters import EnvironmentParameter, ListParameter, RangeParameter
 from .storage.postgres_utils import (
     create_database_if_not_exists,
@@ -841,6 +841,9 @@ class StudyController:
             benchmark_config=self.config.benchmark,
             optimization_config=self.config.optimization,
             logging_config=self.config.logging_config,
+            metrics_scraping_config=getattr(
+                self.config, "metrics_scraping", MetricsScrapingConfig()
+            ),
         )
 
     def _set_trial_user_attributes(self, trial_number: int, result: TrialResult):
@@ -1195,6 +1198,9 @@ class StudyController:
                 benchmark_config=self.config.benchmark,
                 optimization_config=self.config.optimization,
                 logging_config=self.config.logging_config,
+                metrics_scraping_config=getattr(
+                    self.config, "metrics_scraping", MetricsScrapingConfig()
+                ),
                 vllm_startup_timeout=int(
                     self.config.static_environment_variables.get(
                         "VLLM_STARTUP_TIMEOUT", 300

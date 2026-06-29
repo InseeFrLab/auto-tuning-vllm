@@ -19,6 +19,7 @@ optimization:
   # log_metrics:
   #   - "prompt_tokens_per_second_median"
   #   - "inter_token_latency_ms_p95"
+  #   - "vllm_kv_cache_usage_perc_p90"  # any Prometheus name vLLM exposes (no vllm: prefix)
   sampler: "nsga2"  # Best for multi-objective optimization
   n_trials: 11
 
@@ -39,6 +40,12 @@ logging:
   file_path: "/tmp/auto-tune-vllm-logs" # Optional local file path
   nfs_path: null  # Optional NFS mount
   log_level: "INFO"
+
+# Optional: scrape vLLM /metrics during the benchmark when log_metrics includes vllm_* ids
+# metrics_scraping:
+#   vllm:
+#     scrape_interval_seconds: 10
+#     align_with_benchmark_window: true
 
 parameters:
   max_num_batched_tokens:

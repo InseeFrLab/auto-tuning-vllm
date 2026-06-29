@@ -186,9 +186,12 @@ Number of random trials to run before starting the main sampler algorithm. Only 
 Extra benchmark scalars to copy onto each **Optuna trial** as [user attributes](https://optuna.readthedocs.io/en/stable/reference/generated/optuna.trial.Trial.html#optuna.trial.Trial.set_user_attr), mainly so tools like **Optuna Dashboard** can plot or filter on them alongside objectives.
 
 - **Semantics**: This does **not** change the optimization objective. It only stores additional numbers on the trial record after a successful benchmark.
-- **Identifiers**: Each list entry must be a single metric id in the same `<metric>_<percentile>` form as in objective expressions (see **`objectives`** above), e.g. `request_latency_p95`, `output_tokens_per_second_median`. Allowed names are exactly the combined identifiers derived from the base metrics and percentiles documented for objectives.
+- **Identifiers**: Each list entry must be either:
+  - a GuideLLM metric id in the same `<metric>_<percentile>` form as in objective expressions (see **`objectives`** above), e.g. `request_latency_p95`, `output_tokens_per_second_median`; or
+  - a vLLM runtime metric id `vllm_<prometheus_name>_<stat>`, where `<prometheus_name>` is the Prometheus metric name **without** the `vllm:` namespace prefix (e.g. `kv_cache_usage_perc`, `num_preemptions_total`) and `<stat>` is one of `mean`, `median`, `p90`, `p95`, `p99`, `min`, `max`, `std_dev`.
 - **Storage**: For each configured name, the runner writes `trial.set_user_attr("metric_<name>", float_value)` using the value from the trial’s `detailed_metrics`. If a name is missing from `detailed_metrics`, or the value cannot be converted to a float, a warning is logged and that attribute is skipped.
 - **Trials**: Applied to **optimization** and **baseline** trials when the run succeeds and detailed metrics are present. Omitted or unset `log_metrics` is treated as an empty list.
+- **vLLM scraping**: Metrics whose ids start with `vllm_` are populated by scraping the vLLM server `/metrics` endpoint during the benchmark (see **`metrics_scraping.vllm`** below). No metric names are hardcoded: any name vLLM exposes can be requested. Scraping is **disabled** when `log_metrics` contains no `vllm_*` entries.
 
 Example:
 
@@ -200,6 +203,22 @@ optimization:
     - "prompt_tokens_per_second_median"
     - "inter_token_latency_ms_p95"
     - "time_to_first_token_ms_median"
+    - "vllm_kv_cache_usage_perc_p90"
+```
+
+Example with vLLM runtime metrics:
+
+```yaml
+optimization:
+  preset: "balanced"
+  n_trials: 50
+  log_metrics:
+    - "request_latency_p95"
+    - "vllm_num_preemptions_total_mean"
+metrics_scraping:
+  vllm:
+    scrape_interval_seconds: 10
+    align_with_benchmark_window: true
 ```
 
 ### Preset Configurations Explained
@@ -398,6 +417,36 @@ Controls the verbosity of logging output. Available levels:
 - **`"ERROR"`**: Only error messages
 
 **Note**: File logging is recommended for production optimization runs to preserve detailed results and troubleshooting information.
+
+## Metrics scraping configuration
+
+The optional `metrics_scraping` section controls vLLM `/metrics` scraping during trials. It is only active when `optimization.log_metrics` includes at least one id starting with `vllm_`.
+
+### `metrics_scraping.vllm`
+
+Scrapes the vLLM Prometheus `/metrics` endpoint while the GuideLLM benchmark runs.
+
+#### `scrape_interval_seconds` (number, optional)
+Seconds between scrapes. Default: `10`.
+
+#### `align_with_benchmark_window` (boolean, optional)
+When `true` (default), scraped samples are filtered to the same measurement window as GuideLLM reported metrics, using `benchmark.warmup`, `benchmark.cooldown`, and `benchmark.max_seconds`. Warmup/cooldown values in `(0, 1)` are treated as fractions of `max_seconds`; values `>= 1` are absolute seconds.
+
+### vLLM metric ids in `log_metrics`
+
+Use the form `vllm_<prometheus_name>_<stat>`:
+
+- `<prometheus_name>`: name as exposed by vLLM on `/metrics`, without the `vllm:` namespace prefix.
+- `<stat>`: `mean`, `median`, `p90`, `p95`, `p99`, `min`, `max`, or `std_dev`.
+
+No metric list is enforced at config load time; missing metrics at runtime produce warnings and the corresponding user attribute is skipped.
+
+### Aggregation behavior
+
+| Prometheus type | Aggregation |
+|-----------------|-------------|
+| **Gauge** | The requested stat is computed over the in-window time series (multi-label series are collapsed with **max** per scrape). |
+| **Counter** | `mean` → rate `(last - first) / window_duration`; all other stats → window delta `(last - first)`. |
 
 ## Parameter Configuration
 

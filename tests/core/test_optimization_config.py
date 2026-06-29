@@ -51,6 +51,91 @@ def test_log_metrics_invalid_metric_raises():
         )
 
 
+def test_log_metrics_valid_vllm_entries():
+    cfg = OptimizationConfig(
+        approach="single_objective",
+        objectives=[
+            ObjectiveConfig(
+                metric="output_tokens_per_second_mean",
+                direction="maximize",
+            )
+        ],
+        log_metrics=[
+            "request_latency_p95",
+            "vllm_foo_bar_p90",
+            "vllm_num_events_total_mean",
+        ],
+    )
+    assert cfg.log_metrics == [
+        "request_latency_p95",
+        "vllm_foo_bar_p90",
+        "vllm_num_events_total_mean",
+    ]
+
+
+def test_log_metrics_invalid_vllm_stat_raises():
+    with pytest.raises(ValueError, match="unknown stat"):
+        OptimizationConfig(
+            approach="single_objective",
+            objectives=[
+                ObjectiveConfig(
+                    metric="output_tokens_per_second_mean",
+                    direction="maximize",
+                )
+            ],
+            log_metrics=["vllm_foo_bar_unknown"],
+        )
+
+
+def test_log_metrics_invalid_vllm_empty_name_raises():
+    with pytest.raises(ValueError, match="prometheus name must be non-empty"):
+        OptimizationConfig(
+            approach="single_objective",
+            objectives=[
+                ObjectiveConfig(
+                    metric="output_tokens_per_second_mean",
+                    direction="maximize",
+                )
+            ],
+            log_metrics=["vllm__p95"],
+        )
+
+
+def test_resolve_required_vllm_metrics_empty_when_no_vllm_ids():
+    cfg = OptimizationConfig(
+        approach="single_objective",
+        objectives=[
+            ObjectiveConfig(
+                metric="output_tokens_per_second_mean",
+                direction="maximize",
+            )
+        ],
+        log_metrics=["request_latency_p95"],
+    )
+    assert cfg.resolve_required_vllm_metrics() == {}
+
+
+def test_resolve_required_vllm_metrics_groups_stats_by_name():
+    cfg = OptimizationConfig(
+        approach="single_objective",
+        objectives=[
+            ObjectiveConfig(
+                metric="output_tokens_per_second_mean",
+                direction="maximize",
+            )
+        ],
+        log_metrics=[
+            "vllm_foo_bar_p90",
+            "vllm_foo_bar_p95",
+            "vllm_events_total_mean",
+        ],
+    )
+    assert cfg.resolve_required_vllm_metrics() == {
+        "foo_bar": {"p90", "p95"},
+        "events_total": {"mean"},
+    }
+
+
 def test_log_metrics_wrong_container_type_raises():
     with pytest.raises(ValueError, match="log_metrics must be a list"):
         OptimizationConfig(

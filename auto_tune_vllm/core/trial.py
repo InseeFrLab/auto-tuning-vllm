@@ -59,6 +59,7 @@ class TrialConfig:
     optimization_config: Optional[Any] = None  # Optimization configuration from study
     resource_requirements: Dict[str, float] = field(default_factory=dict)
     logging_config: Optional[Dict[str, Any]] = None  # Logging configuration from study
+    metrics_scraping_config: Optional[Any] = None  # Metrics scraping config from study
     vllm_startup_timeout: int = 300  # vLLM server startup timeout in seconds
     health_check_interval: int = 30  # Seconds between health checks during execution
     # Consecutive failures before marking server as dead
