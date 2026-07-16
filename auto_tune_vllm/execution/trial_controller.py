@@ -220,14 +220,6 @@ class BaseTrialController(TrialController):
                     trial_config.trial_id, "benchmark"
                 )
 
-                # Log trial start
-                self.trial_loggers["controller"].info(
-                    f"Starting trial {trial_config.trial_id}"
-                )
-                self.trial_loggers["controller"].info(
-                    f"Parameters: {trial_config.parameters}"
-                )
-
         except Exception as e:
             # Fallback to default logger if setup fails
             logger.warning(f"Failed to setup trial logging: {e}")
@@ -318,12 +310,6 @@ class BaseTrialController(TrialController):
                                     Can be checked via .is_cancelled().remote()
         """
         execution_info = ExecutionInfo()
-        controller_logger = self._get_trial_logger("controller")
-        controller_logger.info(
-            f"Running trial {trial_config.trial_id} "
-            f"with parameters: {trial_config.parameters}"
-        )
-        controller_logger.info(f"Study name: {trial_config.study_name}")
 
         try:
             # Store study name for log flushing
@@ -335,8 +321,12 @@ class BaseTrialController(TrialController):
                 "trial_id": trial_config.trial_id,
             }
 
-            # Setup trial-specific logging first
+            # Setup trial-specific logging before capturing component loggers
             self._setup_trial_logging(trial_config)
+            controller_logger = self._get_trial_logger("controller")
+            controller_logger.info(f"Starting trial {trial_config.trial_id}")
+            controller_logger.info(f"Parameters: {trial_config.parameters}")
+            controller_logger.info(f"Study name: {trial_config.study_name}")
 
             # Validate environment first
             self._validate_environment(trial_config)
@@ -809,9 +799,9 @@ class BaseTrialController(TrialController):
             stdout, stderr = benchmark_process.communicate(timeout=5)
 
             if returncode != 0:
-                raise RuntimeError(
-                    f"Benchmark failed with exit code {returncode}: {stderr}"
-                )
+                error_msg = f"Benchmark failed with exit code {returncode}: {stderr}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
             # Parse benchmark results
             benchmark_result = self.benchmark_provider.parse_results()
