@@ -15,10 +15,17 @@ from auto_tune_vllm.benchmarks.preprocessors import FlattenImageListsPreprocesso
 
 def _uses_legacy_generative_entrypoints() -> bool:
     """Return True for GuideLLM 0.6.x, which kept the generative entrypoints module."""
-    return (
-        importlib.util.find_spec("guidellm.benchmark.schemas.generative.entrypoints")
-        is not None
-    )
+    try:
+        return (
+            importlib.util.find_spec(
+                "guidellm.benchmark.schemas.generative.entrypoints"
+            )
+            is not None
+        )
+    except ModuleNotFoundError:
+        # GuideLLM 0.7+ removed the generative schemas package; find_spec raises
+        # when intermediate parents are missing (Python 3.12+).
+        return False
 
 
 def _parse_json_arg(raw: str | None) -> dict[str, Any] | None:
