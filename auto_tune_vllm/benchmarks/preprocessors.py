@@ -3,12 +3,26 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from guidellm.data.preprocessors.preprocessor import (
     DatasetPreprocessor,
     PreprocessorRegistry,
 )
+
+try:
+    from guidellm.data.schemas import DataPreprocessorArgs
+    from pydantic import Field
+
+    @DataPreprocessorArgs.register("flatten_image_lists")
+    class FlattenImageListsArgs(DataPreprocessorArgs):
+        """Arguments for the flatten_image_lists preprocessor (GuideLLM 0.7+)."""
+
+        kind: Literal["flatten_image_lists"] = Field(default="flatten_image_lists")
+        base_dirs: list[str] = Field(default_factory=list)
+
+except ImportError:
+    FlattenImageListsArgs = None  # type: ignore[assignment,misc]
 
 __all__ = ["FlattenImageListsPreprocessor", "resolve_image_path"]
 
@@ -34,7 +48,14 @@ def resolve_image_path(path: str, base_dirs: list[Path]) -> str:
 class FlattenImageListsPreprocessor(DatasetPreprocessor):
     """Expand nested image lists so each image is encoded separately."""
 
-    def __init__(self, base_dirs: list[str] | None = None, **_: Any) -> None:
+    def __init__(
+        self,
+        config: Any | None = None,
+        base_dirs: list[str | Path] | None = None,
+        **_: Any,
+    ) -> None:
+        if config is not None and hasattr(config, "base_dirs"):
+            base_dirs = config.base_dirs
         self.base_dirs = [Path(directory) for directory in (base_dirs or [])]
 
     def __call__(self, items: list[dict[str, list[Any]]]) -> list[dict[str, list[Any]]]:

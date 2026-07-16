@@ -183,24 +183,8 @@ class GuideLLMBenchmark(BenchmarkProvider):
         "request_concurrency": "successful",
     }
 
-    def start_benchmark(
-        self, model_url: str, config: BenchmarkConfig
-    ) -> subprocess.Popen:
-        """
-        Start GuideLLM benchmark subprocess (non-blocking).
-
-        Returns:
-            Popen process handle for polling by caller
-        """
-        self._logger.info(f"Starting GuideLLM benchmark for {config.model}")
-
-        # Create results file path directly in permanent location
-        self._results_file = self._get_results_file_path()
-
-        # Build GuideLLM command
-        cmd = self._build_guidellm_command(model_url, config, self._results_file)
-
-        # Validate binary and basic inputs
+    def _validate_runtime(self, model_url: str, config: BenchmarkConfig) -> None:
+        """Validate runtime dependencies and inputs before launching."""
         import shutil
 
         if shutil.which("guidellm") is None:
@@ -211,13 +195,10 @@ class GuideLLMBenchmark(BenchmarkProvider):
         if not (model_url.startswith("http://") or model_url.startswith("https://")):
             raise ValueError(f"Invalid model_url: {model_url!r} (expected http/https)")
 
-        # Run GuideLLM
-        self._logger.info(f"Running: {' '.join(cmd)}")
-        self._logger.info(f"Results will be saved to: {self._results_file}")
-
-        # Use Popen so we can terminate if vLLM dies
-        # start_new_session=True puts it in its own process group for clean
-        # termination
+    def _launch_subprocess(
+        self, cmd: list[str], config: BenchmarkConfig
+    ) -> subprocess.Popen:
+        """Launch a benchmark subprocess with the standard GuideLLM settings."""
         env = os.environ.copy()
         env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
 
@@ -230,7 +211,6 @@ class GuideLLMBenchmark(BenchmarkProvider):
             start_new_session=True,
         )
 
-        # Store PID and PGID immediately for cleanup, even if process handle is lost
         self._process_pid = self._process.pid
         try:
             self._process_pgid = os.getpgid(self._process_pid)
@@ -245,6 +225,27 @@ class GuideLLMBenchmark(BenchmarkProvider):
             self._process_pgid = None
 
         return self._process
+
+    def start_benchmark(
+        self, model_url: str, config: BenchmarkConfig
+    ) -> subprocess.Popen:
+        """
+        Start GuideLLM benchmark subprocess (non-blocking).
+
+        Returns:
+            Popen process handle for polling by caller
+        """
+        self._logger.info(f"Starting GuideLLM benchmark for {config.model}")
+
+        self._validate_runtime(model_url, config)
+
+        self._results_file = self._get_results_file_path()
+        cmd = self._build_guidellm_command(model_url, config, self._results_file)
+
+        self._logger.info(f"Running: {' '.join(cmd)}")
+        self._logger.info(f"Results will be saved to: {self._results_file}")
+
+        return self._launch_subprocess(cmd, config)
 
     def parse_results(self) -> Dict[str, Any]:
         """
