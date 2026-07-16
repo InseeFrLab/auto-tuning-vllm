@@ -138,8 +138,13 @@ def _file_data_kind(dataset: str) -> str:
     return "json_file"
 
 
+_FILE_KINDS_NEEDING_TRAIN_SPLIT = frozenset(
+    {"json_file", "csv_file", "parquet_file", "arrow_file"}
+)
+
+
 def _build_data_entries(dataset: str, data_args: dict[str, Any] | None) -> list[Any]:
-    load_kwargs = data_args or {}
+    load_kwargs = dict(data_args or {})
     if dataset.startswith("hf://"):
         return [
             {
@@ -148,9 +153,17 @@ def _build_data_entries(dataset: str, data_args: dict[str, Any] | None) -> list[
                 "load_kwargs": load_kwargs,
             }
         ]
+
+    kind = _file_data_kind(dataset)
+    # GuideLLM 0.7+ column mappers expect a Dataset (with .info), but
+    # datasets.load_dataset() returns a DatasetDict for local files unless
+    # a split is selected.
+    if kind in _FILE_KINDS_NEEDING_TRAIN_SPLIT and "split" not in load_kwargs:
+        load_kwargs["split"] = "train"
+
     return [
         {
-            "kind": _file_data_kind(dataset),
+            "kind": kind,
             "path": dataset,
             "load_kwargs": load_kwargs,
         }
