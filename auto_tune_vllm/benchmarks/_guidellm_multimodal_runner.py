@@ -9,6 +9,9 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+# Register custom preprocessors before GuideLLM benchmark schemas are imported.
+from auto_tune_vllm.benchmarks import preprocessors  # noqa: F401
+
 
 def _parse_json_arg(raw: str | None) -> dict[str, Any] | None:
     if raw is None:
