@@ -310,6 +310,7 @@ class BaseTrialController(TrialController):
                                     Can be checked via .is_cancelled().remote()
         """
         execution_info = ExecutionInfo()
+        state: TrialState | None = None
 
         try:
             # Store study name for log flushing
