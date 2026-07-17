@@ -1,4 +1,4 @@
-"""GuideLLM benchmark provider for multi-image VLM workloads (GuideLLM 0.6+)."""
+"""GuideLLM benchmark provider for multi-image VLM workloads (GuideLLM >= 0.7.1)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class GuideLLMMultimodalBenchmark(GuideLLMBenchmark):
         if importlib.util.find_spec("guidellm") is None:
             raise RuntimeError(
                 "GuideLLM is not installed for this Python interpreter. "
-                f"Install with: {sys.executable} -m pip install 'guidellm>=0.6.0,<0.8.0'"
+                f"Install with: {sys.executable} -m pip install 'guidellm>=0.7.1'"
             )
         if not (model_url.startswith("http://") or model_url.startswith("https://")):
             raise ValueError(f"Invalid model_url: {model_url!r} (expected http/https)")

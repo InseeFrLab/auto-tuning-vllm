@@ -16,6 +16,21 @@ from .config import BenchmarkConfig
 
 logger = logging.getLogger(__name__)
 
+_FILE_KINDS_NEEDING_TRAIN_SPLIT = frozenset(
+    {"json_file", "csv_file", "parquet_file", "arrow_file"}
+)
+
+
+def _file_data_kind(dataset: str) -> str:
+    suffix = Path(dataset).suffix.lower()
+    if suffix == ".csv":
+        return "csv_file"
+    if suffix in {".json", ".jsonl"}:
+        return "json_file"
+    if suffix == ".parquet":
+        return "parquet_file"
+    return "json_file"
+
 
 class BenchmarkProvider(ABC):
     """Abstract benchmark provider interface."""
@@ -339,51 +354,46 @@ class GuideLLMBenchmark(BenchmarkProvider):
     def _build_guidellm_command(
         self, model_url: str, config: BenchmarkConfig, results_file: str
     ) -> list[str]:
-        """Build GuideLLM command arguments."""
-        # Use processor if specified, otherwise default to model
+        """Build GuideLLM 0.7.1+ `run` command arguments."""
         processor = config.processor if config.processor is not None else config.model
+
+        profile_parts = ["kind=concurrent", f"streams={config.rate}"]
+        if config.warmup is not None:
+            profile_parts.append(f"warmup={config.warmup}")
+        if config.cooldown is not None:
+            profile_parts.append(f"cooldown={config.cooldown}")
+        if config.rampup is not None:
+            profile_parts.append(f"rampup_duration={config.rampup}")
 
         cmd = [
             "guidellm",
-            "benchmark",
-            "--target",
-            model_url,
-            "--model",
-            config.model,
-            "--processor",
-            processor,
-            "--rate-type",
-            "concurrent",
-            "--max-seconds",
-            str(config.max_seconds),
-            "--rate",
-            str(config.rate),
-            "--output-path",
-            results_file,
-            "--processor-args",
-            '{"trust-remote-code":"true"}',
-            "--sample-requests",
-            str(config.sample_requests),
+            "run",
+            "--backend",
+            f"kind=openai_http,target={model_url},model={config.model}",
+            "--tokenizer",
+            json.dumps(
+                {
+                    "kind": "huggingface_auto",
+                    "model": processor,
+                    "load_kwargs": {"trust_remote_code": True},
+                }
+            ),
+            "--profile",
+            ",".join(profile_parts),
+            "--constraint",
+            f"kind=max_duration,seconds={config.max_seconds}",
+            "--metrics",
+            f"kind=generative,sample_size={config.sample_requests}",
+            "--output",
+            f"kind=json,path={results_file}",
         ]
 
-        if config.warmup is not None:
-            cmd.extend(["--warmup", str(config.warmup)])
-        if config.cooldown is not None:
-            cmd.extend(["--cooldown", str(config.cooldown)])
-        if config.rampup is not None:
-            cmd.extend(["--rampup", str(config.rampup)])
-
-        # Add dataset or synthetic data configuration
         if config.use_synthetic_data:
-            # Build data JSON object - only include statistical parameters if specified
-            data_config = {
+            data_config: dict[str, Any] = {
+                "kind": "synthetic_text",
                 "prompt_tokens": config.prompt_tokens,
                 "output_tokens": config.output_tokens,
-                "samples": config.samples,
             }
-
-            # Only add statistical distribution parameters if they were explicitly
-            # specified
             if config.prompt_tokens_stdev is not None:
                 data_config["prompt_tokens_stdev"] = config.prompt_tokens_stdev
             if config.prompt_tokens_min is not None:
@@ -397,17 +407,32 @@ class GuideLLMBenchmark(BenchmarkProvider):
             if config.output_tokens_max is not None:
                 data_config["output_tokens_max"] = config.output_tokens_max
 
-            cmd.extend(["--data", json.dumps(data_config)])
+            cmd.extend(
+                [
+                    "--data",
+                    json.dumps(data_config),
+                    "--data-loader",
+                    f"kind=pytorch,samples={config.samples}",
+                ]
+            )
+        elif config.dataset.startswith("hf://"):
+            dataset_name = config.dataset[5:]
+            cmd.extend(["--data", f"kind=huggingface,source={dataset_name}"])
         else:
-            if config.dataset.startswith("hf://"):
-                # HuggingFace dataset
-                dataset_name = config.dataset[5:]  # Remove "hf://" prefix
-                cmd.extend(["--data-type", "huggingface", "--dataset", dataset_name])
-            else:
-                # Local file
-                if not os.path.exists(config.dataset):
-                    raise FileNotFoundError(f"Dataset file not found: {config.dataset}")
-                cmd.extend(["--data-type", "file", "--dataset", config.dataset])
+            if not os.path.exists(config.dataset):
+                raise FileNotFoundError(f"Dataset file not found: {config.dataset}")
+            file_kind = _file_data_kind(config.dataset)
+            load_kwargs: dict[str, str] = {}
+            if file_kind in _FILE_KINDS_NEEDING_TRAIN_SPLIT:
+                load_kwargs["split"] = "train"
+            data_entry: dict[str, Any] = {
+                "kind": file_kind,
+                "path": config.dataset,
+            }
+            if load_kwargs:
+                data_entry["load_kwargs"] = load_kwargs
+            cmd.extend(["--data", json.dumps(data_entry)])
+
         return cmd
 
     def _parse_guidellm_results(self, data: dict) -> Dict[str, Any]:

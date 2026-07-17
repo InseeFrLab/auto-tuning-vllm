@@ -37,10 +37,10 @@ class BenchmarkConfig:
     # GuideLLM ramp-up duration in seconds (linear increase to target rate). Omit to disable.
     rampup: Optional[float] = None
 
-    # Max detailed request samples stored in benchmark JSON output (GuideLLM --sample-requests).
+    # Max detailed request samples stored in benchmark JSON output (GuideLLM sample_size).
     sample_requests: int = 0
 
-    # Multimodal / advanced data pipeline (GuideLLM 0.6+, benchmark_type: guidellm_multimodal)
+    # Multimodal / advanced data pipeline (benchmark_type: guidellm_multimodal)
     data_args: Optional[dict] = None
     data_column_mapper: Optional[dict] = None
     data_preprocessors: Optional[list[str]] = None

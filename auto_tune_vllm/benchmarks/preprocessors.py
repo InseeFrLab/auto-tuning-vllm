@@ -9,22 +9,18 @@ from guidellm.data.preprocessors.preprocessor import (
     DatasetPreprocessor,
     PreprocessorRegistry,
 )
-
-try:
-    from guidellm.data.schemas import DataPreprocessorArgs
-    from pydantic import Field
-
-    @DataPreprocessorArgs.register("flatten_image_lists")
-    class FlattenImageListsArgs(DataPreprocessorArgs):
-        """Arguments for the flatten_image_lists preprocessor (GuideLLM 0.7+)."""
-
-        kind: Literal["flatten_image_lists"] = Field(default="flatten_image_lists")
-        base_dirs: list[str] = Field(default_factory=list)
-
-except ImportError:
-    FlattenImageListsArgs = None  # type: ignore[assignment,misc]
+from guidellm.data.schemas import DataPreprocessorArgs
+from pydantic import Field
 
 __all__ = ["FlattenImageListsPreprocessor", "resolve_image_path"]
+
+
+@DataPreprocessorArgs.register("flatten_image_lists")
+class FlattenImageListsArgs(DataPreprocessorArgs):
+    """Arguments for the flatten_image_lists preprocessor."""
+
+    kind: Literal["flatten_image_lists"] = Field(default="flatten_image_lists")
+    base_dirs: list[str] = Field(default_factory=list)
 
 
 def resolve_image_path(path: str, base_dirs: list[Path]) -> str:

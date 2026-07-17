@@ -4,28 +4,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import importlib.util
 import json
 import shutil
 from pathlib import Path
 from typing import Any
-
-from auto_tune_vllm.benchmarks.preprocessors import FlattenImageListsPreprocessor
-
-
-def _uses_legacy_generative_entrypoints() -> bool:
-    """Return True for GuideLLM 0.6.x, which kept the generative entrypoints module."""
-    try:
-        return (
-            importlib.util.find_spec(
-                "guidellm.benchmark.schemas.generative.entrypoints"
-            )
-            is not None
-        )
-    except ModuleNotFoundError:
-        # GuideLLM 0.7+ removed the generative schemas package; find_spec raises
-        # when intermediate parents are missing (Python 3.12+).
-        return False
 
 
 def _parse_json_arg(raw: str | None) -> dict[str, Any] | None:
@@ -53,21 +35,7 @@ def _build_base_dirs(
     return list(unique.values())
 
 
-def _normalize_column_mapper_legacy(
-    mapper: dict[str, Any] | None,
-) -> str | dict[str, Any]:
-    if not mapper:
-        return "generative_column_mapper"
-    if "column_mappings" in mapper:
-        return mapper["column_mappings"]
-    if "type" in mapper or "kind" in mapper:
-        return {
-            key: value for key, value in mapper.items() if key not in {"type", "kind"}
-        }
-    return mapper
-
-
-def _normalize_column_mapper_v071(mapper: dict[str, Any] | None) -> dict[str, Any]:
+def _normalize_column_mapper(mapper: dict[str, Any] | None) -> dict[str, Any]:
     if not mapper:
         return {"kind": "generative_column_mapper"}
 
@@ -88,21 +56,7 @@ def _normalize_column_mapper_v071(mapper: dict[str, Any] | None) -> dict[str, An
     return normalized
 
 
-def _resolve_preprocessors_legacy(
-    names: list[str], dataset: str, preprocessors_kwargs: dict[str, Any] | None
-) -> list[Any]:
-    resolved: list[Any] = []
-    base_dirs = _build_base_dirs(dataset, preprocessors_kwargs)
-
-    for name in names:
-        if name == "flatten_image_lists":
-            resolved.append(FlattenImageListsPreprocessor(base_dirs=base_dirs))
-        else:
-            resolved.append(name)
-    return resolved
-
-
-def _resolve_preprocessors_v071(
+def _resolve_preprocessors(
     names: list[str], dataset: str, preprocessors_kwargs: dict[str, Any] | None
 ) -> list[dict[str, Any]]:
     base_dirs = [str(path) for path in _build_base_dirs(dataset, preprocessors_kwargs)]
@@ -117,7 +71,7 @@ def _resolve_preprocessors_v071(
     return resolved
 
 
-def _normalize_request_format_v071(request_format: str) -> str:
+def _normalize_request_format(request_format: str) -> str:
     legacy_aliases = {
         "text_completions": "/v1/completions",
         "chat_completions": "/v1/chat/completions",
@@ -177,64 +131,7 @@ def _copy_generated_report(output_path: Path) -> None:
     shutil.copyfile(generated_report, output_path)
 
 
-async def _run_legacy(args: argparse.Namespace) -> None:
-    from guidellm.benchmark.entrypoints import benchmark_generative_text
-    from guidellm.benchmark.schemas.generative.entrypoints import (
-        BenchmarkGenerativeTextArgs,
-    )
-
-    processor_args = _parse_json_arg(args.processor_args)
-    data_args = _parse_json_arg(args.data_args)
-    data_column_mapper = _parse_json_arg(args.data_column_mapper)
-    data_preprocessors_kwargs = _parse_json_arg(args.data_preprocessors_kwargs) or {}
-
-    preprocessors = _resolve_preprocessors_legacy(
-        args.data_preprocessors.split(","),
-        args.dataset,
-        data_preprocessors_kwargs,
-    )
-
-    benchmark_kwargs: dict[str, Any] = {
-        "scenario": None,
-        "profile": "concurrent",
-        "backend": "openai_http",
-        "data": [
-            args.dataset[5:] if args.dataset.startswith("hf://") else args.dataset
-        ],
-        "backend_kwargs": {
-            "target": args.target,
-            "model": args.model,
-            "request_format": args.request_format,
-        },
-        "processor": args.processor,
-        "data_column_mapper": _normalize_column_mapper_legacy(data_column_mapper),
-        "data_preprocessors": preprocessors,
-        "data_preprocessors_kwargs": data_preprocessors_kwargs,
-        "data_num_workers": 0,
-        "outputs": ["json"],
-        "output_dir": str(args.output_path.parent),
-        "max_seconds": args.max_seconds,
-        "rate": [args.rate],
-        "sample_requests": args.sample_requests,
-    }
-
-    if args.data_finalizer is not None:
-        benchmark_kwargs["data_finalizer"] = args.data_finalizer
-    if processor_args is not None:
-        benchmark_kwargs["processor_args"] = processor_args
-    if data_args is not None:
-        benchmark_kwargs["data_args"] = data_args
-    if args.warmup is not None:
-        benchmark_kwargs["warmup"] = args.warmup
-    if args.cooldown is not None:
-        benchmark_kwargs["cooldown"] = args.cooldown
-
-    bench_args = BenchmarkGenerativeTextArgs.create(**benchmark_kwargs)
-    await benchmark_generative_text(args=bench_args)
-    _copy_generated_report(args.output_path)
-
-
-async def _run_v071(args: argparse.Namespace) -> None:
+async def _run(args: argparse.Namespace) -> None:
     from guidellm.benchmark.entrypoints import benchmark_generative_text
     from guidellm.benchmark.schemas.entrypoints import BenchmarkScenario
 
@@ -261,7 +158,7 @@ async def _run_v071(args: argparse.Namespace) -> None:
             "kind": "openai_http",
             "target": args.target,
             "model": args.model,
-            "request_format": _normalize_request_format_v071(args.request_format),
+            "request_format": _normalize_request_format(args.request_format),
         },
         "profile": profile,
         "constraints": [{"kind": "max_duration", "seconds": args.max_seconds}],
@@ -271,8 +168,8 @@ async def _run_v071(args: argparse.Namespace) -> None:
             "load_kwargs": processor_args,
         },
         "data": _build_data_entries(args.dataset, data_args),
-        "data_column_mapper": _normalize_column_mapper_v071(data_column_mapper),
-        "data_preprocessors": _resolve_preprocessors_v071(
+        "data_column_mapper": _normalize_column_mapper(data_column_mapper),
+        "data_preprocessors": _resolve_preprocessors(
             args.data_preprocessors.split(","),
             args.dataset,
             data_preprocessors_kwargs,
@@ -294,13 +191,6 @@ async def _run_v071(args: argparse.Namespace) -> None:
     bench_args = BenchmarkScenario.create(scenario=None, spec=spec)
     await benchmark_generative_text(args=bench_args)
     _copy_generated_report(args.output_path)
-
-
-async def _run(args: argparse.Namespace) -> None:
-    if _uses_legacy_generative_entrypoints():
-        await _run_legacy(args)
-    else:
-        await _run_v071(args)
 
 
 def _build_parser() -> argparse.ArgumentParser:
