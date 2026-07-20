@@ -804,7 +804,7 @@ class BaseTrialController(TrialController):
                     f"Benchmark failed with exit code {returncode}. "
                     f"Log tail:\n{log_tail}"
                 )
-                logger.error(error_msg)
+                controller_logger.error(error_msg)
                 raise RuntimeError(error_msg)
 
             # Parse benchmark results
