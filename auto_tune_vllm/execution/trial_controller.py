@@ -785,7 +785,7 @@ class BaseTrialController(TrialController):
         benchmark_start_time: float,
         trial_config: TrialConfig,
         execution_info,
-        logger,
+        controller_logger,
     ):
         """Handle benchmark running state.
 
@@ -794,7 +794,9 @@ class BaseTrialController(TrialController):
         # Check if benchmark completed
         returncode = benchmark_process.poll()
         if returncode is not None:
-            logger.debug(f"Benchmark process completed with return code {returncode}")
+            controller_logger.debug(
+                f"Benchmark process completed with return code {returncode}"
+            )
 
             # Get benchmark output and parse results
             stdout, stderr = benchmark_process.communicate(timeout=5)
@@ -818,7 +820,9 @@ class BaseTrialController(TrialController):
             objective_values = self._extract_objectives(
                 benchmark_result, trial_config.optimization_config
             )
-            logger.info(f"Trial completed with objectives: {objective_values}")
+            controller_logger.info(
+                f"Trial completed with objectives: {objective_values}"
+            )
 
             return TrialResult(
                 trial_id=trial_config.trial_id,
@@ -834,7 +838,9 @@ class BaseTrialController(TrialController):
         elapsed = time.time() - benchmark_start_time
         max_benchmark_time = trial_config.benchmark_config.max_seconds * 1.5
         if elapsed > max_benchmark_time:
-            logger.warning(f"Benchmark timeout after {elapsed:.1f}s, terminating...")
+            controller_logger.warning(
+                f"Benchmark timeout after {elapsed:.1f}s, terminating..."
+            )
             if hasattr(self.benchmark_provider, "terminate_benchmark"):
                 self.benchmark_provider.terminate_benchmark()
             raise RuntimeError(f"Benchmark timed out after {max_benchmark_time}s")

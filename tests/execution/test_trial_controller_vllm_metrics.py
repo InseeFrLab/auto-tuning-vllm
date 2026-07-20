@@ -76,7 +76,7 @@ def test_handle_benchmark_running_merges_vllm_metrics(monkeypatch):
         benchmark_start_time=0.0,
         trial_config=trial_config,
         execution_info=ExecutionInfo(),
-        logger=MagicMock(),
+        controller_logger=MagicMock(),
     )
 
     assert result is not None
