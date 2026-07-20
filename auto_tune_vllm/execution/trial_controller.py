@@ -20,6 +20,7 @@ except ImportError:
 
 from ..benchmarks.guidellm_multimodal import GuideLLMMultimodalBenchmark
 from ..benchmarks.providers import BenchmarkProvider, GuideLLMBenchmark
+from ..benchmarks.trace_replay import GuideLLMTraceReplayBenchmark
 from ..core.config import MetricsScrapingConfig, VLLMMetricsScrapingConfig
 from ..core.trial import ExecutionInfo, TrialConfig, TrialResult
 from ..logging.manager import CentralizedLogger
@@ -537,6 +538,8 @@ class BaseTrialController(TrialController):
             return GuideLLMBenchmark()
         if benchmark_type == "guidellm_multimodal":
             return GuideLLMMultimodalBenchmark()
+        if benchmark_type == "guidellm_trace_replay":
+            return GuideLLMTraceReplayBenchmark()
         else:
             # Import custom provider by name
             # This enables extensibility for custom benchmarks

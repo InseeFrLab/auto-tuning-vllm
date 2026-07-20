@@ -1,0 +1,35 @@
+# Example study for trace replay benchmarking with GuideLLM.
+#
+# Sample JSONL: examples/trace_replay/sample.jsonl (~200 s span, 247 rows)
+# Each line has timestamp, input_length, and output_length for replay scheduling.
+#
+# benchmark_type "guidellm_trace_replay" uses profile kind=replay (not the
+# concurrent profile used by benchmark_type "guidellm").
+# benchmark.rate is reused as time_scale for the replay profile (1.0 = real-time).
+
+study:
+  prefix: "trace_replay_demo"
+
+optimization:
+  preset: "high_throughput"
+  n_trials: 11
+
+benchmark:
+  benchmark_type: "guidellm_trace_replay"
+  model: "Qwen/Qwen2.5-0.5B-Instruct"
+  max_seconds: 300
+  rate: 1
+  sample_requests: 0
+  dataset: "examples/trace_replay/sample.jsonl"
+  profile:
+    kind: replay
+    trace_format: trace_synthetic
+
+logging:
+  file_path: "./auto-tune-vllm-logs"
+  log_level: "INFO"
+
+parameters:
+  max_num_batched_tokens:
+    enabled: true
+    options: [1024, 2048, 4096]

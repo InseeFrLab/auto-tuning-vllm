@@ -8,7 +8,7 @@ from typing import Literal, Optional
 class BenchmarkConfig:
     """Configuration for benchmark execution."""
 
-    benchmark_type: str = "guidellm"  # "guidellm" or custom provider name
+    benchmark_type: str = "guidellm"  # concurrent-profile GuideLLM (see profiles.py)
     model: str = "RedHatAI/Qwen3-30B-A3B-FP8-dynamic"
     max_seconds: int = 300
     dataset: Optional[str] = None  # HF dataset or file path
@@ -48,6 +48,9 @@ class BenchmarkConfig:
     data_finalizer: Optional[str] = None
     request_format: Optional[str] = None
 
+    # GuideLLM benchmark profile (concurrent or replay). Omitted => concurrent.
+    profile: Optional[dict] = None
+
     # Set in benchmark section of study config
     # Logging level for GuideLLM
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
@@ -79,6 +82,12 @@ class BenchmarkConfig:
             raise ValueError(
                 f"benchmark.sample_requests must be >= 0; got {self.sample_requests}"
             )
+
+        if self.profile is not None:
+            from .profiles import profile_from_dict
+
+            profile = profile_from_dict(self.profile)
+            profile.validate(self)
 
     @property
     def use_synthetic_data(self) -> bool:

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from .config import BenchmarkConfig
+from .profiles import profile_from_dict
 
 logger = logging.getLogger(__name__)
 
@@ -351,21 +352,14 @@ class GuideLLMBenchmark(BenchmarkProvider):
             ) as f:
                 return f.name
 
-    def _build_guidellm_command(
+    def _build_guidellm_base_command(
         self, model_url: str, config: BenchmarkConfig, results_file: str
     ) -> list[str]:
-        """Build GuideLLM 0.7.1+ `run` command arguments."""
+        """Build GuideLLM ``run`` args shared by all CLI-based providers."""
         processor = config.processor if config.processor is not None else config.model
+        profile = profile_from_dict(config.profile)
 
-        profile_parts = ["kind=concurrent", f"streams={config.rate}"]
-        if config.warmup is not None:
-            profile_parts.append(f"warmup={config.warmup}")
-        if config.cooldown is not None:
-            profile_parts.append(f"cooldown={config.cooldown}")
-        if config.rampup is not None:
-            profile_parts.append(f"rampup_duration={config.rampup}")
-
-        cmd = [
+        return [
             "guidellm",
             "run",
             "--backend",
@@ -379,7 +373,7 @@ class GuideLLMBenchmark(BenchmarkProvider):
                 }
             ),
             "--profile",
-            ",".join(profile_parts),
+            profile.render_cli_profile(config),
             "--constraint",
             f"kind=max_duration,seconds={config.max_seconds}",
             "--metrics",
@@ -388,6 +382,10 @@ class GuideLLMBenchmark(BenchmarkProvider):
             f"kind=json,path={results_file}",
         ]
 
+    def _append_standard_data_args(
+        self, cmd: list[str], config: BenchmarkConfig
+    ) -> list[str]:
+        """Append ``--data`` (and loader) args for synthetic, file, or HF datasets."""
         if config.use_synthetic_data:
             data_config: dict[str, Any] = {
                 "kind": "synthetic_text",
@@ -434,6 +432,13 @@ class GuideLLMBenchmark(BenchmarkProvider):
             cmd.extend(["--data", json.dumps(data_entry)])
 
         return cmd
+
+    def _build_guidellm_command(
+        self, model_url: str, config: BenchmarkConfig, results_file: str
+    ) -> list[str]:
+        """Build GuideLLM 0.7.1+ `run` command arguments."""
+        cmd = self._build_guidellm_base_command(model_url, config, results_file)
+        return self._append_standard_data_args(cmd, config)
 
     def _parse_guidellm_results(self, data: dict) -> Dict[str, Any]:
         """Parse GuideLLM JSON results data structure."""

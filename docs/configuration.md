@@ -239,7 +239,25 @@ The `benchmark` section controls how performance measurements are conducted. Thi
 ### Core Benchmark Settings
 
 #### `benchmark_type` (string, optional)
-The benchmarking framework to use. Supported values are `"guidellm"` (default) and `"guidellm_multimodal"` (for VLM/multi-image workloads).
+The benchmarking framework and workload mode to use:
+
+| Value | GuideLLM profile | Role |
+|-------|------------------|------|
+| `"guidellm"` (default) | **Concurrent** (`kind=concurrent`) | Fixed concurrency load via `rate` → `streams` |
+| `"guidellm_multimodal"` | Concurrent | Multi-image VLM JSONL workloads |
+| `"guidellm_trace_replay"` | **Replay** (`kind=replay`) | Trace file replay via `rate` / `time_scale` |
+
+`benchmark_type: "guidellm"` is **not** a generic catch-all benchmark mode: it specifically runs GuideLLM with the **concurrent profile** (omitted `benchmark.profile` defaults to `kind: concurrent`). Trace replay and multimodal workloads use separate providers and profiles.
+
+Optional explicit profile override via `benchmark.profile`:
+
+```yaml
+benchmark:
+  benchmark_type: "guidellm"
+  profile:
+    kind: concurrent   # default when omitted
+  rate: 50             # concurrent streams
+```
 
 #### `model` (string, required)
 The HuggingFace model identifier to benchmark. This should match the model you plan to serve in production. Examples:
@@ -301,7 +319,7 @@ When using real datasets, the `prompt_tokens` and `output_tokens` settings are i
 
 #### Multimodal Datasets (VLM / multi-image)
 
-Use a **separate benchmark provider** so the default `guidellm` path stays unchanged:
+Use a **separate benchmark provider** so the concurrent-profile `guidellm` path stays unchanged:
 
 ```yaml
 benchmark:
@@ -343,14 +361,60 @@ parameters:
 
 See [examples/study_config_vlm_multi_image.yaml](../examples/study_config_vlm_multi_image.yaml) and [examples/vlm_multi_image/data.jsonl](../examples/vlm_multi_image/data.jsonl) for a full Qwen2-VL-2B-Instruct example.
 
+#### Trace Replay Benchmarking
+
+Use a **separate benchmark provider** with GuideLLM's **replay profile** (not the concurrent profile used by `benchmark_type: "guidellm"`) to replay production or synthetic trace files (GuideLLM >= 0.7.1):
+
+```yaml
+benchmark:
+  benchmark_type: "guidellm_trace_replay"
+  model: "Qwen/Qwen2.5-0.5B-Instruct"
+  max_seconds: 300
+  rate: 1
+  dataset: "examples/trace_replay/sample.jsonl"
+  profile:
+    kind: replay
+    trace_format: trace_synthetic
+```
+
+Each trace row is a JSON object with timestamp and token lengths. GuideLLM sorts rows by timestamp and schedules requests at the recorded inter-arrival intervals:
+
+```jsonl
+{"timestamp": 0.0, "input_length": 256, "output_length": 128}
+{"timestamp": 0.5, "input_length": 512, "output_length": 96}
+```
+
+Prompts are generated synthetically to match `input_length`; the replay profile does not use literal prompt text from the trace file.
+
+| Field | Description |
+|-------|-------------|
+| `benchmark_type` | Must be `"guidellm_trace_replay"` for trace replay workloads |
+| `dataset` | Path to a JSONL, JSON, CSV, or Parquet trace file (required) |
+| `rate` | Reused as `time_scale` for the replay profile when `profile.time_scale` is omitted (`1.0` = real-time, `2.0` = half speed, `0.5` = double speed) |
+| `profile.kind` | Must be `"replay"` |
+| `profile.trace_format` | Trace deserializer: `"trace_synthetic"` (default) or `"mooncake"` |
+| `profile.time_scale` | Optional explicit time scale; overrides `rate` when set |
+| `profile.data_samples` | Optional cap on trace rows loaded via `--data-loader kind=pytorch,samples=N` |
+| `profile.timestamp_column` | Trace timestamp column name (default: `"timestamp"`) |
+| `profile.prompt_tokens_column` | Prompt token count column (default: `"input_length"`) |
+| `profile.output_tokens_column` | Output token count column (default: `"output_length"`) |
+| `profile.hash_ids_column` | Mooncake-only hash ID list column (default: `"hash_ids"`) |
+| `profile.hash_id_block_size` | Mooncake-only tokens per hash ID block (default: `512`) |
+
+`warmup`, `cooldown`, and `rampup` are not supported with the replay profile. Baseline trials use the same `rate` / `time_scale` semantics as optimization trials.
+
+See [examples/study_config_trace_replay.yaml](../examples/study_config_trace_replay.yaml) and [examples/trace_replay/sample.jsonl](../examples/trace_replay/sample.jsonl) for a full example.
+
 ### Load Configuration
 
 #### `rate` (integer, optional)
-Number of concurrent requests to maintain during benchmarking. This simulates realistic server load:
+With `benchmark_type: "guidellm"` (concurrent profile), number of concurrent requests to maintain (`rate` → GuideLLM `streams`). This simulates realistic server load:
 - **Light load**: 10-20 requests
 - **Moderate load**: 50-100 requests
 - **Heavy load**: 200+ requests
 Default: 50
+
+For `guidellm_trace_replay`, `rate` is reused as the replay profile's `time_scale` when `profile.time_scale` is not set.
 
 ### Advanced Options
 
