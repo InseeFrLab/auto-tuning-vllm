@@ -27,6 +27,7 @@ class BenchmarkProvider(ABC):
         self._process_pid = None  # Store PID for cleanup even if process handle is gone
         self._process_pgid = None  # Store process group ID for cleanup
         self._cancellation_flag = None  # Function to check for cancellation
+        self._benchmark_log_path: str | None = None  # See _launch_subprocess
 
     def set_logger(self, custom_logger):
         """Set a custom logger for this benchmark provider."""
@@ -35,6 +36,26 @@ class BenchmarkProvider(ABC):
     def set_trial_context(self, study_name: str, trial_id: str):
         """Set trial context for benchmark result storage."""
         self._trial_context = {"study_name": study_name, "trial_id": trial_id}
+
+    def get_last_log_lines(self, n: int = 50) -> str:
+        """Return the last ``n`` lines of the benchmark subprocess log file.
+
+        Returns a short placeholder string when no log file was captured or
+        when reading fails, so callers can safely embed the result in error
+        messages without extra guards.
+        """
+        log_path = self._benchmark_log_path
+        if not log_path or not os.path.exists(log_path):
+            return "(no benchmark log captured)"
+
+        try:
+            with open(log_path, "rb") as f:
+                content = f.read().decode(errors="replace")
+        except OSError as e:
+            return f"(failed to read benchmark log at {log_path}: {e})"
+
+        lines = content.splitlines()
+        return "\n".join(lines[-n:]) if lines else "(benchmark log is empty)"
 
     def terminate_benchmark(self):
         """Terminate the running benchmark process and its process group if active."""
@@ -198,18 +219,27 @@ class GuideLLMBenchmark(BenchmarkProvider):
     def _launch_subprocess(
         self, cmd: list[str], config: BenchmarkConfig
     ) -> subprocess.Popen:
-        """Launch a benchmark subprocess with the standard GuideLLM settings."""
+        """Launch a benchmark subprocess with the standard GuideLLM settings.
+
+        Redirects stdout/stderr to a file instead of ``subprocess.PIPE`` so
+        the OS pipe buffer can never fill and deadlock the child while the
+        parent only polls.
+        """
         env = os.environ.copy()
         env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
 
-        self._process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env,
-            start_new_session=True,
-        )
+        self._benchmark_log_path = str(Path(self._results_file).with_suffix(".log"))
+
+        # Parent handle can be closed right after Popen; the child keeps its
+        # own duplicated fd.
+        with open(self._benchmark_log_path, "wb") as log_file:
+            self._process = subprocess.Popen(
+                cmd,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                env=env,
+                start_new_session=True,
+            )
 
         self._process_pid = self._process.pid
         try:

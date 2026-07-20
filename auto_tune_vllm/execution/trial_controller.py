@@ -798,11 +798,12 @@ class BaseTrialController(TrialController):
                 f"Benchmark process completed with return code {returncode}"
             )
 
-            # Get benchmark output and parse results
-            stdout, stderr = benchmark_process.communicate(timeout=5)
-
             if returncode != 0:
-                error_msg = f"Benchmark failed with exit code {returncode}: {stderr}"
+                log_tail = self.benchmark_provider.get_last_log_lines()
+                error_msg = (
+                    f"Benchmark failed with exit code {returncode}. "
+                    f"Log tail:\n{log_tail}"
+                )
                 logger.error(error_msg)
                 raise RuntimeError(error_msg)
 
