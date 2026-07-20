@@ -318,7 +318,7 @@ For vision models served via vLLM, point `dataset` at a JSONL file where each li
 {"prompt": "Compare these images", "image": ["images_test/9.png", "images_test/11.png"]}
 ```
 
-`guidellm_multimodal` launches `auto_tune_vllm.benchmarks._guidellm_multimodal_runner`, which calls GuideLLM 0.6+ through the Python API (`benchmark_generative_text`). The runner resolves the custom `flatten_image_lists` preprocessor locally and passes remaining preprocessors (e.g. `encode_media`) to GuideLLM by name. Setting `data_preprocessors` overrides GuideLLM defaults, so list both preprocessors explicitly.
+`guidellm_multimodal` launches `auto_tune_vllm.benchmarks._guidellm_multimodal_runner`, which calls GuideLLM >= 0.7.1 through the Python API (`benchmark_generative_text`). The runner resolves the custom `flatten_image_lists` preprocessor locally and passes remaining preprocessors (e.g. `encode_media`) to GuideLLM by name. Setting `data_preprocessors` overrides GuideLLM defaults, so list both preprocessors explicitly.
 
 | Field | Description |
 |-------|-------------|
@@ -363,11 +363,11 @@ GuideLLM warmup period, excluded from benchmark metrics. Reduces variance from c
 - **Fraction** (recommended): value strictly between `0` and `1`, e.g. `0.1` = first 10% of the run used for warmup only.
 - **Absolute**: value `>= 1` = fixed number of requests or seconds (see [GuideLLM](https://github.com/vllm-project/guidellm) docs).
 
-Omit or set to `null` to disable (GuideLLM default). Applies to optimization and baseline trials. Requires a recent [GuideLLM](https://github.com/vllm-project/guidellm) install that supports `--warmup` / `--cooldown` on the `guidellm benchmark` command.
+Omit or set to `null` to disable (GuideLLM default). Applies to optimization and baseline trials. Requires [GuideLLM](https://github.com/vllm-project/guidellm) `>= 0.7.1` (warmup/cooldown are passed via the concurrent profile in `guidellm run`).
 
 When both `warmup` and `cooldown` are fractional, their sum must stay below `1` so a measured window remains.
 
-**Measured duration:** warmup and cooldown are taken from the same `--max-seconds` budget (they do not extend wall-clock time). With `max_seconds: 300`, `warmup: 0.1`, and `cooldown: 0.1`, roughly 240 seconds contribute to reported metrics—increase `max_seconds` if you need a longer steady-state phase.
+**Measured duration:** warmup and cooldown are taken from the same `max_seconds` budget (they do not extend wall-clock time). With `max_seconds: 300`, `warmup: 0.1`, and `cooldown: 0.1`, roughly 240 seconds contribute to reported metrics—increase `max_seconds` if you need a longer steady-state phase.
 
 #### `cooldown` (number, optional)
 GuideLLM cooldown period at the end of the run, also excluded from metrics. Same format as `warmup` (e.g. `0.1` for the last 10%).
@@ -381,7 +381,7 @@ GuideLLM ramp-up duration in seconds. Requests are spread linearly from zero up 
 Unlike `warmup`, ramp-up requests are included in reported metrics — it controls how load increases, not which phase is measured. See [GuideLLM benchmark docs](https://github.com/vllm-project/guidellm/blob/main/docs/getting-started/benchmark.md).
 
 #### `sample_requests` (integer, optional)
-Maximum number of detailed request samples stored in GuideLLM benchmark JSON output (`--sample-requests`). Default: `0` (no per-request samples; keeps result files small). Set to a positive value when you need request-level timings for debugging or deeper analysis. Requires [GuideLLM](https://github.com/vllm-project/guidellm) `>= 0.5.4` (fix for `--sample-requests` in [v0.5.4](https://github.com/vllm-project/guidellm/releases/tag/v0.5.4)).
+Maximum number of detailed request samples stored in GuideLLM benchmark JSON output (`sample_size` in the generative metrics config). Default: `0` (no per-request samples; keeps result files small). Set to a positive value when you need request-level timings for debugging or deeper analysis. Requires [GuideLLM](https://github.com/vllm-project/guidellm) `>= 0.7.1`.
 
 Example:
 

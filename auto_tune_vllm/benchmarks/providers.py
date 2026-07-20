@@ -16,6 +16,21 @@ from .config import BenchmarkConfig
 
 logger = logging.getLogger(__name__)
 
+_FILE_KINDS_NEEDING_TRAIN_SPLIT = frozenset(
+    {"json_file", "csv_file", "parquet_file", "arrow_file"}
+)
+
+
+def _file_data_kind(dataset: str) -> str:
+    suffix = Path(dataset).suffix.lower()
+    if suffix == ".csv":
+        return "csv_file"
+    if suffix in {".json", ".jsonl"}:
+        return "json_file"
+    if suffix == ".parquet":
+        return "parquet_file"
+    return "json_file"
+
 
 class BenchmarkProvider(ABC):
     """Abstract benchmark provider interface."""
@@ -27,6 +42,7 @@ class BenchmarkProvider(ABC):
         self._process_pid = None  # Store PID for cleanup even if process handle is gone
         self._process_pgid = None  # Store process group ID for cleanup
         self._cancellation_flag = None  # Function to check for cancellation
+        self._benchmark_log_path: str | None = None  # See _launch_subprocess
 
     def set_logger(self, custom_logger):
         """Set a custom logger for this benchmark provider."""
@@ -35,6 +51,26 @@ class BenchmarkProvider(ABC):
     def set_trial_context(self, study_name: str, trial_id: str):
         """Set trial context for benchmark result storage."""
         self._trial_context = {"study_name": study_name, "trial_id": trial_id}
+
+    def get_last_log_lines(self, n: int = 50) -> str:
+        """Return the last ``n`` lines of the benchmark subprocess log file.
+
+        Returns a short placeholder string when no log file was captured or
+        when reading fails, so callers can safely embed the result in error
+        messages without extra guards.
+        """
+        log_path = self._benchmark_log_path
+        if not log_path or not os.path.exists(log_path):
+            return "(no benchmark log captured)"
+
+        try:
+            with open(log_path, "rb") as f:
+                content = f.read().decode(errors="replace")
+        except OSError as e:
+            return f"(failed to read benchmark log at {log_path}: {e})"
+
+        lines = content.splitlines()
+        return "\n".join(lines[-n:]) if lines else "(benchmark log is empty)"
 
     def terminate_benchmark(self):
         """Terminate the running benchmark process and its process group if active."""
@@ -183,24 +219,8 @@ class GuideLLMBenchmark(BenchmarkProvider):
         "request_concurrency": "successful",
     }
 
-    def start_benchmark(
-        self, model_url: str, config: BenchmarkConfig
-    ) -> subprocess.Popen:
-        """
-        Start GuideLLM benchmark subprocess (non-blocking).
-
-        Returns:
-            Popen process handle for polling by caller
-        """
-        self._logger.info(f"Starting GuideLLM benchmark for {config.model}")
-
-        # Create results file path directly in permanent location
-        self._results_file = self._get_results_file_path()
-
-        # Build GuideLLM command
-        cmd = self._build_guidellm_command(model_url, config, self._results_file)
-
-        # Validate binary and basic inputs
+    def _validate_runtime(self, model_url: str, config: BenchmarkConfig) -> None:
+        """Validate runtime dependencies and inputs before launching."""
         import shutil
 
         if shutil.which("guidellm") is None:
@@ -211,26 +231,31 @@ class GuideLLMBenchmark(BenchmarkProvider):
         if not (model_url.startswith("http://") or model_url.startswith("https://")):
             raise ValueError(f"Invalid model_url: {model_url!r} (expected http/https)")
 
-        # Run GuideLLM
-        self._logger.info(f"Running: {' '.join(cmd)}")
-        self._logger.info(f"Results will be saved to: {self._results_file}")
+    def _launch_subprocess(
+        self, cmd: list[str], config: BenchmarkConfig
+    ) -> subprocess.Popen:
+        """Launch a benchmark subprocess with the standard GuideLLM settings.
 
-        # Use Popen so we can terminate if vLLM dies
-        # start_new_session=True puts it in its own process group for clean
-        # termination
+        Redirects stdout/stderr to a file instead of ``subprocess.PIPE`` so
+        the OS pipe buffer can never fill and deadlock the child while the
+        parent only polls.
+        """
         env = os.environ.copy()
         env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
 
-        self._process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env,
-            start_new_session=True,
-        )
+        self._benchmark_log_path = str(Path(self._results_file).with_suffix(".log"))
 
-        # Store PID and PGID immediately for cleanup, even if process handle is lost
+        # Parent handle can be closed right after Popen; the child keeps its
+        # own duplicated fd.
+        with open(self._benchmark_log_path, "wb") as log_file:
+            self._process = subprocess.Popen(
+                cmd,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                env=env,
+                start_new_session=True,
+            )
+
         self._process_pid = self._process.pid
         try:
             self._process_pgid = os.getpgid(self._process_pid)
@@ -245,6 +270,27 @@ class GuideLLMBenchmark(BenchmarkProvider):
             self._process_pgid = None
 
         return self._process
+
+    def start_benchmark(
+        self, model_url: str, config: BenchmarkConfig
+    ) -> subprocess.Popen:
+        """
+        Start GuideLLM benchmark subprocess (non-blocking).
+
+        Returns:
+            Popen process handle for polling by caller
+        """
+        self._logger.info(f"Starting GuideLLM benchmark for {config.model}")
+
+        self._validate_runtime(model_url, config)
+
+        self._results_file = self._get_results_file_path()
+        cmd = self._build_guidellm_command(model_url, config, self._results_file)
+
+        self._logger.info(f"Running: {' '.join(cmd)}")
+        self._logger.info(f"Results will be saved to: {self._results_file}")
+
+        return self._launch_subprocess(cmd, config)
 
     def parse_results(self) -> Dict[str, Any]:
         """
@@ -308,51 +354,46 @@ class GuideLLMBenchmark(BenchmarkProvider):
     def _build_guidellm_command(
         self, model_url: str, config: BenchmarkConfig, results_file: str
     ) -> list[str]:
-        """Build GuideLLM command arguments."""
-        # Use processor if specified, otherwise default to model
+        """Build GuideLLM 0.7.1+ `run` command arguments."""
         processor = config.processor if config.processor is not None else config.model
+
+        profile_parts = ["kind=concurrent", f"streams={config.rate}"]
+        if config.warmup is not None:
+            profile_parts.append(f"warmup={config.warmup}")
+        if config.cooldown is not None:
+            profile_parts.append(f"cooldown={config.cooldown}")
+        if config.rampup is not None:
+            profile_parts.append(f"rampup_duration={config.rampup}")
 
         cmd = [
             "guidellm",
-            "benchmark",
-            "--target",
-            model_url,
-            "--model",
-            config.model,
-            "--processor",
-            processor,
-            "--rate-type",
-            "concurrent",
-            "--max-seconds",
-            str(config.max_seconds),
-            "--rate",
-            str(config.rate),
-            "--output-path",
-            results_file,
-            "--processor-args",
-            '{"trust-remote-code":"true"}',
-            "--sample-requests",
-            str(config.sample_requests),
+            "run",
+            "--backend",
+            f"kind=openai_http,target={model_url},model={config.model}",
+            "--tokenizer",
+            json.dumps(
+                {
+                    "kind": "huggingface_auto",
+                    "model": processor,
+                    "load_kwargs": {"trust_remote_code": True},
+                }
+            ),
+            "--profile",
+            ",".join(profile_parts),
+            "--constraint",
+            f"kind=max_duration,seconds={config.max_seconds}",
+            "--metrics",
+            f"kind=generative,sample_size={config.sample_requests}",
+            "--output",
+            f"kind=json,path={results_file}",
         ]
 
-        if config.warmup is not None:
-            cmd.extend(["--warmup", str(config.warmup)])
-        if config.cooldown is not None:
-            cmd.extend(["--cooldown", str(config.cooldown)])
-        if config.rampup is not None:
-            cmd.extend(["--rampup", str(config.rampup)])
-
-        # Add dataset or synthetic data configuration
         if config.use_synthetic_data:
-            # Build data JSON object - only include statistical parameters if specified
-            data_config = {
+            data_config: dict[str, Any] = {
+                "kind": "synthetic_text",
                 "prompt_tokens": config.prompt_tokens,
                 "output_tokens": config.output_tokens,
-                "samples": config.samples,
             }
-
-            # Only add statistical distribution parameters if they were explicitly
-            # specified
             if config.prompt_tokens_stdev is not None:
                 data_config["prompt_tokens_stdev"] = config.prompt_tokens_stdev
             if config.prompt_tokens_min is not None:
@@ -366,17 +407,32 @@ class GuideLLMBenchmark(BenchmarkProvider):
             if config.output_tokens_max is not None:
                 data_config["output_tokens_max"] = config.output_tokens_max
 
-            cmd.extend(["--data", json.dumps(data_config)])
+            cmd.extend(
+                [
+                    "--data",
+                    json.dumps(data_config),
+                    "--data-loader",
+                    f"kind=pytorch,samples={config.samples}",
+                ]
+            )
+        elif config.dataset.startswith("hf://"):
+            dataset_name = config.dataset[5:]
+            cmd.extend(["--data", f"kind=huggingface,source={dataset_name}"])
         else:
-            if config.dataset.startswith("hf://"):
-                # HuggingFace dataset
-                dataset_name = config.dataset[5:]  # Remove "hf://" prefix
-                cmd.extend(["--data-type", "huggingface", "--dataset", dataset_name])
-            else:
-                # Local file
-                if not os.path.exists(config.dataset):
-                    raise FileNotFoundError(f"Dataset file not found: {config.dataset}")
-                cmd.extend(["--data-type", "file", "--dataset", config.dataset])
+            if not os.path.exists(config.dataset):
+                raise FileNotFoundError(f"Dataset file not found: {config.dataset}")
+            file_kind = _file_data_kind(config.dataset)
+            load_kwargs: dict[str, str] = {}
+            if file_kind in _FILE_KINDS_NEEDING_TRAIN_SPLIT:
+                load_kwargs["split"] = "train"
+            data_entry: dict[str, Any] = {
+                "kind": file_kind,
+                "path": config.dataset,
+            }
+            if load_kwargs:
+                data_entry["load_kwargs"] = load_kwargs
+            cmd.extend(["--data", json.dumps(data_entry)])
+
         return cmd
 
     def _parse_guidellm_results(self, data: dict) -> Dict[str, Any]:

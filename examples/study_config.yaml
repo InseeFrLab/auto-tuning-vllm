@@ -30,7 +30,7 @@ benchmark:
   dataset: null  # Use synthetic data
   prompt_tokens: 500
   output_tokens: 500
-  # Optional: reduce metric variance (requires recent GuideLLM CLI)
+  # Optional: reduce metric variance (requires GuideLLM >= 0.7.1)
   # warmup: 0.1
   # cooldown: 0.1
   # rampup: 10

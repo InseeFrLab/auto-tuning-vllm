@@ -29,7 +29,7 @@ _Last updated from local `gh` / git — refresh before large changes._
 |------|--------|-----------|
 | Comprehensive test suite | In progress (small `tests/` tree) | Add controller/backend tests per PR #21 pattern |
 | CI runs tests strictly | Partial | Remove `pytest ... \|\| true` in `ci.yml` when suite is stable |
-| Dependency pinning / hygiene | Open | Align `pyproject.toml` with supported vLLM/GuideLLM matrix |
+| Dependency pinning / hygiene | In progress | Align `pyproject.toml` with supported vLLM/GuideLLM matrix (GuideLLM `>=0.7.1`) |
 | CLI validation / error messages | Open | Extend `StudyConfig` errors + Typer messages |
 | Speculative decoding params | Future | Design parameter module + example YAML |
 | Extra benchmark providers | Future | Implement `BenchmarkProvider` subclass |

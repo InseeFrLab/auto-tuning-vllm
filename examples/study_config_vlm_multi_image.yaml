@@ -49,7 +49,7 @@ static_parameters:
   max_model_len: 32000
   trust_remote_code: true
   mm_processor_cache_gb: 0
-
+  optimization_level: 0
 parameters:
   max_num_batched_tokens:
     enabled: true

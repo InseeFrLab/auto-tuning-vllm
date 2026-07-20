@@ -220,14 +220,6 @@ class BaseTrialController(TrialController):
                     trial_config.trial_id, "benchmark"
                 )
 
-                # Log trial start
-                self.trial_loggers["controller"].info(
-                    f"Starting trial {trial_config.trial_id}"
-                )
-                self.trial_loggers["controller"].info(
-                    f"Parameters: {trial_config.parameters}"
-                )
-
         except Exception as e:
             # Fallback to default logger if setup fails
             logger.warning(f"Failed to setup trial logging: {e}")
@@ -318,12 +310,7 @@ class BaseTrialController(TrialController):
                                     Can be checked via .is_cancelled().remote()
         """
         execution_info = ExecutionInfo()
-        controller_logger = self._get_trial_logger("controller")
-        controller_logger.info(
-            f"Running trial {trial_config.trial_id} "
-            f"with parameters: {trial_config.parameters}"
-        )
-        controller_logger.info(f"Study name: {trial_config.study_name}")
+        state: TrialState | None = None
 
         try:
             # Store study name for log flushing
@@ -335,8 +322,12 @@ class BaseTrialController(TrialController):
                 "trial_id": trial_config.trial_id,
             }
 
-            # Setup trial-specific logging first
+            # Setup trial-specific logging before capturing component loggers
             self._setup_trial_logging(trial_config)
+            controller_logger = self._get_trial_logger("controller")
+            controller_logger.info(f"Starting trial {trial_config.trial_id}")
+            controller_logger.info(f"Parameters: {trial_config.parameters}")
+            controller_logger.info(f"Study name: {trial_config.study_name}")
 
             # Validate environment first
             self._validate_environment(trial_config)
@@ -794,7 +785,7 @@ class BaseTrialController(TrialController):
         benchmark_start_time: float,
         trial_config: TrialConfig,
         execution_info,
-        logger,
+        controller_logger,
     ):
         """Handle benchmark running state.
 
@@ -803,15 +794,18 @@ class BaseTrialController(TrialController):
         # Check if benchmark completed
         returncode = benchmark_process.poll()
         if returncode is not None:
-            logger.debug(f"Benchmark process completed with return code {returncode}")
-
-            # Get benchmark output and parse results
-            stdout, stderr = benchmark_process.communicate(timeout=5)
+            controller_logger.debug(
+                f"Benchmark process completed with return code {returncode}"
+            )
 
             if returncode != 0:
-                raise RuntimeError(
-                    f"Benchmark failed with exit code {returncode}: {stderr}"
+                log_tail = self.benchmark_provider.get_last_log_lines()
+                error_msg = (
+                    f"Benchmark failed with exit code {returncode}. "
+                    f"Log tail:\n{log_tail}"
                 )
+                controller_logger.error(error_msg)
+                raise RuntimeError(error_msg)
 
             # Parse benchmark results
             benchmark_result = self.benchmark_provider.parse_results()
@@ -827,7 +821,9 @@ class BaseTrialController(TrialController):
             objective_values = self._extract_objectives(
                 benchmark_result, trial_config.optimization_config
             )
-            logger.info(f"Trial completed with objectives: {objective_values}")
+            controller_logger.info(
+                f"Trial completed with objectives: {objective_values}"
+            )
 
             return TrialResult(
                 trial_id=trial_config.trial_id,
@@ -843,7 +839,9 @@ class BaseTrialController(TrialController):
         elapsed = time.time() - benchmark_start_time
         max_benchmark_time = trial_config.benchmark_config.max_seconds * 1.5
         if elapsed > max_benchmark_time:
-            logger.warning(f"Benchmark timeout after {elapsed:.1f}s, terminating...")
+            controller_logger.warning(
+                f"Benchmark timeout after {elapsed:.1f}s, terminating..."
+            )
             if hasattr(self.benchmark_provider, "terminate_benchmark"):
                 self.benchmark_provider.terminate_benchmark()
             raise RuntimeError(f"Benchmark timed out after {max_benchmark_time}s")
