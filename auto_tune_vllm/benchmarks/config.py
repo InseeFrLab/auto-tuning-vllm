@@ -3,12 +3,15 @@
 from dataclasses import dataclass
 from typing import Literal, Optional
 
+CONCURRENT_DEFAULT_RATE = 50
+REPLAY_DEFAULT_RATE = 1.0
+
 
 @dataclass
 class BenchmarkConfig:
     """Configuration for benchmark execution."""
 
-    benchmark_type: str = "guidellm"  # "guidellm" or custom provider name
+    benchmark_type: str = "guidellm"  # concurrent-profile GuideLLM (see profiles.py)
     model: str = "RedHatAI/Qwen3-30B-A3B-FP8-dynamic"
     max_seconds: int = 300
     dataset: Optional[str] = None  # HF dataset or file path
@@ -18,7 +21,7 @@ class BenchmarkConfig:
 
     # Advanced GuideLLM parameters
     processor: Optional[str] = None  # Processor model, defaults to model if not set
-    rate: int = 50  # Single rate value for concurrent requests
+    rate: Optional[float] = None  # Concurrent streams or replay time_scale fallback
     samples: int = 1000  # Number of samples to take
 
     # Token statistics for synthetic data - only used when explicitly specified
@@ -47,6 +50,9 @@ class BenchmarkConfig:
     data_preprocessors_kwargs: Optional[dict] = None
     data_finalizer: Optional[str] = None
     request_format: Optional[str] = None
+
+    # GuideLLM benchmark profile (concurrent or replay). Omitted => concurrent.
+    profile: Optional[dict] = None
 
     # Set in benchmark section of study config
     # Logging level for GuideLLM
@@ -79,6 +85,46 @@ class BenchmarkConfig:
             raise ValueError(
                 f"benchmark.sample_requests must be >= 0; got {self.sample_requests}"
             )
+        self._normalize_benchmark_profile()
+        self._apply_default_rate()
+
+        if self.rate <= 0:
+            raise ValueError(f"benchmark.rate must be greater than 0; got {self.rate}")
+
+        from .profiles import profile_from_dict
+
+        profile = profile_from_dict(self.profile)
+        profile.validate(self)
+
+    def _normalize_benchmark_profile(self) -> None:
+        """Align ``benchmark.profile`` with ``benchmark_type`` (single source of truth)."""
+        if self.benchmark_type == "guidellm_trace_replay":
+            profile = dict(self.profile or {})
+            kind = profile.get("kind", "replay")
+            if kind != "replay":
+                raise ValueError(
+                    "benchmark_type 'guidellm_trace_replay' is incompatible with "
+                    f"benchmark.profile.kind={kind!r}; omit profile.kind or set "
+                    "it to 'replay'"
+                )
+            profile["kind"] = "replay"
+            self.profile = profile
+            return
+
+        if self.profile and self.profile.get("kind") == "replay":
+            raise ValueError(
+                "benchmark.profile.kind='replay' requires "
+                "benchmark_type='guidellm_trace_replay'"
+            )
+
+    def _apply_default_rate(self) -> None:
+        """Apply profile-specific defaults when ``rate`` is omitted."""
+        if self.rate is not None:
+            return
+        if self.benchmark_type == "guidellm_trace_replay":
+            self.rate = REPLAY_DEFAULT_RATE
+        else:
+            self.rate = CONCURRENT_DEFAULT_RATE
 
     @property
     def use_synthetic_data(self) -> bool:
