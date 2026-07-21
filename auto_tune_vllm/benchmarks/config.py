@@ -91,11 +91,10 @@ class BenchmarkConfig:
         if self.rate <= 0:
             raise ValueError(f"benchmark.rate must be greater than 0; got {self.rate}")
 
-        if self.profile is not None:
-            from .profiles import profile_from_dict
+        from .profiles import profile_from_dict
 
-            profile = profile_from_dict(self.profile)
-            profile.validate(self)
+        profile = profile_from_dict(self.profile)
+        profile.validate(self)
 
     def _normalize_benchmark_profile(self) -> None:
         """Align ``benchmark.profile`` with ``benchmark_type`` (single source of truth)."""
