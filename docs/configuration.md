@@ -1016,9 +1016,49 @@ At runtime, enabled trials receive a single vLLM flag:
 
 ### Limitations
 
-- **Grid sampler incompatible:** `optimization.sampler: grid` is rejected when speculative decoding is enabled (conditional search space: on/off toggle and k slicing).
-- **Constraints:** Optuna `constraints:` cannot reference speculative sub-parameters (`spec_method`, `spec_num_speculative_tokens`, etc.). Only the composed JSON appears in trial parameters as `speculative_config`.
-- **Optuna user attributes:** Each trial stores `speculative_config` as a user attribute (`"disabled"` or the JSON string) for dashboard visibility.
+#### Grid sampler incompatible
+
+The **grid** sampler enumerates every combination of the top-level `parameters:` block as a fixed Cartesian product. That works when every trial explores the same dimensions with the same shape.
+
+Speculative decoding adds a **conditional** search space that grid search cannot represent:
+
+| Dimension | Why it breaks grid enumeration |
+|-----------|-------------------------------|
+| **`allow_disabled: true`** | Each trial first chooses `spec_enabled` ∈ `{true, false}`. When `false`, no `--speculative-config` is passed at all; when `true`, several extra sub-parameters are sampled. These are two different trial shapes, not one product grid. |
+| **Method choice** | Optuna samples `spec_method` from `methods:` (e.g. `eagle3` vs `mtp`). Different methods may require different draft models and vLLM flags inside the JSON. |
+| **k (`num_speculative_tokens`)** | With `synthetic_acceptance_rates`, valid k values depend on `len(rates)` (each k slices the rates list). Options like `[2, 4]` are not independent of the rates profile. |
+| **Cardinality under-count** | `auto-tune-vllm validate` reports grid cardinality from `parameters:` only and appends *(parameters only; excludes speculative search space)* when speculative decoding is enabled — the true trial count is higher. |
+
+Because of this, the optimizer:
+
+1. **Rejects** `optimization.sampler: grid` at config load time when `speculative_decoding.enabled: true`.
+2. **Skips** the automatic grid switch in the CLI (normally triggered when `n_trials >=` parameter grid cardinality).
+
+Use **`tpe`**, **`random`**, **`gp`**, **`botorch`**, or **`nsga2`** instead. For exhaustive search over target-model parameters only, disable speculative decoding (`enabled: false`) or run a separate study without the `speculative_decoding` block.
+
+#### Optuna constraints cannot reference speculative sub-parameters
+
+Study-level `constraints:` are arithmetic expressions evaluated against the **trial parameter dict** passed to vLLM — the same keys you would see in a trial config (e.g. `max_model_len`, `tensor_parallel_size`, `speculative_config`).
+
+During sampling, speculative decoding registers internal Optuna names such as `spec_enabled`, `spec_method`, and `spec_num_speculative_tokens`. Those names exist in `trial.params` for the Optuna dashboard, but they are **not** copied into the trial parameter dict. Instead, enabled trials receive a single composed flag:
+
+```yaml
+# In trial parameters (what constraints see):
+speculative_config: '{"method":"eagle3","num_speculative_tokens":2,...}'
+
+# NOT available to constraints:
+# spec_method, spec_enabled, spec_num_speculative_tokens, spec_max_model_len
+```
+
+Constraint evaluation uses `eval(expression, parameters)` on that dict. A constraint like `spec_method == "eagle3"` or `spec_num_speculative_tokens <= 2` will fail (missing variable) or cannot express method-specific rules.
+
+**What works today:** constraints among top-level `parameters:` and `static_parameters` keys, e.g. `max_num_batched_tokens - max_model_len` or `tensor_parallel_size - 4`.
+
+**What does not work:** rules that depend on whether speculation is on, which method was chosen, or draft-level k / `max_model_len`. Encode those relationships in the YAML itself (fixed `static_parameters`, non-overlapping `options`, separate studies per method) rather than in `constraints:`.
+
+#### Optuna user attributes
+
+Each trial stores `speculative_config` as a user attribute (`"disabled"` or the JSON string) for dashboard visibility. Use this column in the Optuna UI to inspect speculation settings post-hoc; it is not used by constraint evaluation.
 
 ## Configuration Examples
 
