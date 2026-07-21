@@ -374,7 +374,10 @@ def run_optimization_sync(
     """Synchronous optimization runner with progress display."""
     total_trials = n_trials or config.optimization.n_trials
     cardinality = get_parameter_grid_cardinality(config)
-    if total_trials >= cardinality:
+    spec_enabled = (
+        config.speculative_decoding is not None and config.speculative_decoding.enabled
+    )
+    if total_trials >= cardinality and not spec_enabled:
         requested = total_trials
         config.optimization.sampler = "grid"
         config.optimization.n_trials = cardinality
@@ -1103,15 +1106,11 @@ def validate_command(
             if study_config.optimization.is_multi_objective:
                 obj_summaries = []
                 for obj in study_config.optimization.objectives:
-                    obj_summaries.append(
-                        f"{obj.metric}:{obj.direction}"
-                    )
+                    obj_summaries.append(f"{obj.metric}:{obj.direction}")
                 opt_summary = f"multi_objective [{', '.join(obj_summaries)}]"
             else:
                 obj = study_config.optimization.objectives[0]
-                opt_summary = (
-                    f"single_objective {obj.metric}:{obj.direction}"
-                )
+                opt_summary = f"single_objective {obj.metric}:{obj.direction}"
         except Exception:
             opt_summary = str(
                 getattr(study_config.optimization, "objective", "unknown")

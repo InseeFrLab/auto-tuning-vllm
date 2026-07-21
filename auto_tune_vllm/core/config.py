@@ -22,6 +22,7 @@ from .parameters import (
     ParameterConfig,
     RangeParameter,
 )
+from .speculative import SpeculativeDecodingConfig, SpeculativeMethod
 
 
 @dataclass
@@ -439,6 +440,7 @@ class StudyConfig:
     metrics_scraping: MetricsScrapingConfig = field(
         default_factory=MetricsScrapingConfig
     )
+    speculative_decoding: Optional[SpeculativeDecodingConfig] = None
 
     @classmethod
     def from_file(
@@ -747,6 +749,19 @@ class ConfigValidator:
                     raise TypeError(msg)
                 constraints = [Constraint(expression=expr) for expr in constraint_data]
 
+        speculative_decoding = self._parse_speculative_decoding(
+            raw_config.get("speculative_decoding")
+        )
+        if (
+            speculative_decoding is not None
+            and speculative_decoding.enabled
+            and optimization.sampler.lower() == "grid"
+        ):
+            raise ValueError(
+                "speculative_decoding is not compatible with sampler: grid "
+                "(conditional search space). Use tpe, random, gp, botorch, or nsga2."
+            )
+
         return StudyConfig(
             study_name=study_name,
             database_url=database_url,
@@ -762,6 +777,82 @@ class ConfigValidator:
             use_explicit_name=use_explicit_name,
             constraints=constraints,
             metrics_scraping=metrics_scraping,
+            speculative_decoding=speculative_decoding,
+        )
+
+    def _parse_speculative_decoding(
+        self, raw: dict[str, Any] | None
+    ) -> SpeculativeDecodingConfig | None:
+        """Parse optional speculative_decoding block from study YAML."""
+        if raw is None:
+            return None
+        if not isinstance(raw, dict):
+            raise TypeError(
+                f"speculative_decoding must be a mapping, got {type(raw).__name__}"
+            )
+
+        enabled = raw.get("enabled", False)
+        allow_disabled = raw.get("allow_disabled", True)
+
+        methods_raw = raw.get("methods")
+        methods: list[SpeculativeMethod] = []
+        if methods_raw is not None:
+            if not isinstance(methods_raw, list):
+                raise TypeError("speculative_decoding.methods must be a list")
+            for entry in methods_raw:
+                if not isinstance(entry, dict):
+                    raise TypeError(
+                        "Each speculative_decoding.methods entry must be a mapping"
+                    )
+                methods.append(
+                    SpeculativeMethod(
+                        method=entry["method"],
+                        model=entry["model"],
+                    )
+                )
+
+        draft_tp = None
+        draft_tp_raw = raw.get("draft_tensor_parallel_size")
+        if draft_tp_raw is not None:
+            if not isinstance(draft_tp_raw, dict):
+                raise TypeError(
+                    "speculative_decoding.draft_tensor_parallel_size must be a mapping"
+                )
+            draft_tp = self._build_parameter_config(
+                "spec_draft_tensor_parallel_size", draft_tp_raw
+            )
+
+        max_model_len = None
+        max_model_len_raw = raw.get("max_model_len")
+        if max_model_len_raw is not None:
+            if not isinstance(max_model_len_raw, dict):
+                raise TypeError("speculative_decoding.max_model_len must be a mapping")
+            max_model_len = self._build_parameter_config(
+                "spec_max_model_len", max_model_len_raw
+            )
+
+        static_params: dict[str, int] = {}
+        raw_static = raw.get("static_parameters") or {}
+        if not isinstance(raw_static, dict):
+            raise TypeError("speculative_decoding.static_parameters must be a mapping")
+        for key, value in raw_static.items():
+            if not isinstance(value, int):
+                raise ValueError(
+                    f"speculative_decoding.static_parameters.{key} must be an "
+                    f"integer, got {type(value).__name__}"
+                )
+            static_params[key] = value
+
+        return SpeculativeDecodingConfig(
+            enabled=enabled,
+            allow_disabled=allow_disabled,
+            methods=methods,
+            synthetic_acceptance_rates=raw.get("synthetic_acceptance_rates"),
+            synthetic_acceptance_length=raw.get("synthetic_acceptance_length"),
+            num_speculative_tokens=raw.get("num_speculative_tokens"),
+            static_parameters=static_params,
+            draft_tensor_parallel_size=draft_tp,
+            max_model_len=max_model_len,
         )
 
     def _infer_parameter_type(self, parameter_config: dict[str, Any]):

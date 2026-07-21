@@ -20,6 +20,7 @@ from ..execution.backends import ExecutionBackend, JobHandle
 from ..logging.manager import CentralizedLogger
 from .config import MetricsScrapingConfig, StudyConfig
 from .parameters import EnvironmentParameter, ListParameter, RangeParameter
+from .speculative import MIN_VLLM_VERSION, vllm_version_at_least
 from .storage.postgres_utils import (
     create_database_if_not_exists,
     verify_database_connection,
@@ -31,6 +32,30 @@ logger = logging.getLogger(__name__)
 
 TWO_HOURS_IN_SECONDS = 7200
 POLL_RATE = 5
+
+
+def _validate_speculative_vllm_version(config: StudyConfig) -> None:
+    """Ensure installed vLLM meets the minimum version for speculative decoding."""
+    spec = config.speculative_decoding
+    if spec is None or not spec.enabled:
+        return
+
+    from ..utils.vllm_cli_parser import VLLMCLIParser
+
+    parser = VLLMCLIParser()
+    version = parser.get_vllm_version()
+    min_str = ".".join(str(part) for part in MIN_VLLM_VERSION)
+    if not vllm_version_at_least(version, MIN_VLLM_VERSION):
+        raise RuntimeError(
+            f"speculative_decoding requires vLLM >= {min_str}; "
+            f"installed version is {version!r}. "
+            "Upgrade vLLM or disable speculative_decoding in the study config."
+        )
+    logger.info(
+        "speculative_decoding enabled (vLLM %s >= %s)",
+        version,
+        min_str,
+    )
 
 
 class StudyController:
@@ -92,6 +117,7 @@ class StudyController:
 
         # Create sampler based on config
         sampler = cls._create_sampler(config)
+        _validate_speculative_vllm_version(config)
 
         # Determine optimization directions for Optuna
         # (works for single and multi-objective)
@@ -237,6 +263,7 @@ class StudyController:
 
         # Create sampler based on config
         sampler = cls._create_sampler(config)
+        _validate_speculative_vllm_version(config)
 
         storage, storage_type = get_storage(config, resume_study=True)
 
@@ -829,6 +856,12 @@ class StudyController:
             if param_config.enabled:
                 value = param_config.generate_optuna_suggest(trial)
                 parameters[param_name] = value
+
+        spec = self.config.speculative_decoding
+        if spec is not None and spec.enabled:
+            spec_json = spec.suggest(trial)
+            if spec_json is not None:
+                parameters["speculative_config"] = spec_json
 
         return TrialConfig(
             study_name=self.config.study_name,

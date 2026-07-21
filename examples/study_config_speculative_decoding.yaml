@@ -1,0 +1,75 @@
+# Speculative decoding optimization with synthetic rejection sampling (vLLM >= 0.20).
+# Target: Qwen/Qwen3-8B fits on a single A100 40GB with headroom for EAGLE3 draft.
+# See docs/configuration.md#speculative-decoding-configuration.
+
+study:
+  prefix: "spec_decode_qwen3"
+
+optimization:
+  preset: "high_throughput"
+  sampler: "tpe"
+  n_trials: 50
+  max_concurrent_trials: 1
+
+benchmark:
+  benchmark_type: "guidellm"
+  model: "Qwen/Qwen3-8B"
+  max_seconds: 300
+  dataset: null
+  prompt_tokens: 1000
+  output_tokens: 1000
+  rate: 10
+
+logging:
+  file_path: "/tmp/auto-tune-vllm-spec-decode/logs"
+  log_level: "INFO"
+
+static_environment_variables:
+  VLLM_USE_V1: "1"
+  VLLM_STARTUP_TIMEOUT: "900"
+
+static_parameters:
+  trust_remote_code: true
+  enable_server_load_tracking: true
+
+# Target (verifier) model settings — top-level vLLM CLI args.
+parameters:
+  tensor_parallel_size:
+    enabled: true
+    options: [1]
+
+  max_model_len:
+    enabled: true
+    options: [8192, 16384]
+
+  gpu_memory_utilization:
+    enabled: true
+    min: 0.85
+    max: 0.95
+    step: 0.05
+
+speculative_decoding:
+  enabled: true
+  allow_disabled: true
+
+  # Qwen3-8B supports native MTP (method: mtp) and EAGLE3 via RedHat speculator.
+  methods:
+    - method: mtp
+      model: "Qwen/Qwen3-8B"  # target/verifier model for native MTP heads
+    - method: eagle3
+      model: "RedHatAI/Qwen3-8B-speculator.eagle3"
+
+  synthetic_acceptance_rates: [0.8, 0.7, 0.6, 0.5]
+
+  # Option B (mutually exclusive with synthetic_acceptance_rates):
+  # synthetic_acceptance_length: 4
+  # num_speculative_tokens: 4
+
+  # Fixed draft settings (always injected into --speculative-config JSON).
+  static_parameters:
+    draft_tensor_parallel_size: 1
+
+  # Tune draft max_model_len; draft_tensor_parallel_size is fixed above.
+  max_model_len:
+    enabled: true
+    options: [4096, 8192, 16384]
