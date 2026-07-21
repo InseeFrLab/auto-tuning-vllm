@@ -52,13 +52,13 @@ def demo_configuration_loading():
     print("\n⚙️  Configuration Loading Demo")
     print("=" * 40)
 
-    config_path = "examples/test_versioned_config.yaml"
+    config_path = "examples/study_config.yaml"
 
-    # Method 1: Load with specific vLLM version
-    print("📋 Method 1: Load with specific vLLM version")
+    # Method 1: Load with auto-detected vLLM defaults
+    print("📋 Method 1: Load with auto-detected vLLM defaults")
     try:
-        config = StudyConfig.from_file(config_path, vllm_version="0.10.1.1")
-        print("✅ Loaded config with vLLM v0.10.1.1 defaults")
+        config = StudyConfig.from_file(config_path)
+        print("✅ Loaded config with auto-detected vLLM defaults")
         print(f"   Parameters: {len(config.parameters)}")
 
         # Show a parameter that uses vLLM defaults
@@ -72,11 +72,19 @@ def demo_configuration_loading():
     except Exception as e:
         print(f"❌ Failed to load config: {e}")
 
-    # Method 2: Load with auto-detected latest version
-    print("\n📋 Method 2: Load with auto-detected latest version")
+    # Method 2: Load with an explicit vLLM version (when defaults exist for that release)
+    print("\n📋 Method 2: Load with explicit vLLM version (optional)")
+    manager = VLLMVersionManager()
+    versions = manager.list_available_versions()
+    if not versions:
+        print(
+            "⚠️  No versioned defaults on disk — run scripts/generate_vllm_defaults.py first"
+        )
+        return
+    version = versions[0].version
     try:
-        config = StudyConfig.from_file(config_path)
-        print("✅ Loaded config with latest vLLM defaults")
+        config = StudyConfig.from_file(config_path, vllm_version=version)
+        print(f"✅ Loaded config with vLLM v{version} defaults")
         print(f"   Parameters: {len(config.parameters)}")
     except Exception as e:
         print(f"❌ Failed to load config: {e}")

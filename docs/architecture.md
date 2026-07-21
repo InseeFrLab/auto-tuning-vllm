@@ -84,7 +84,7 @@ flowchart TB
 | `execution/` | Backends and per-trial runtime |
 | `benchmarks/` | GuideLLM integration |
 | `logging/` | Centralized trial logs |
-| `examples/` | Sample study YAML files |
+| `examples/` | Study YAMLs, sample datasets, Python demos — see `examples/README.md` |
 
 ---
 

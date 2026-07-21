@@ -38,8 +38,18 @@ The fork baseline is commit [`3c4264d`](https://github.com/InseeFrLab/auto-tunin
 ### Benchmarking (GuideLLM)
 
 - **`benchmark.warmup` / `benchmark.cooldown`** — exclude cold-start and shutdown phases from reported metrics to reduce variance ([#24](https://github.com/InseeFrLab/auto-tuning-vllm/pull/24))
-- **`benchmark.rampup`** — linear load ramp-up duration in seconds before reaching target concurrency
+- **`benchmark.rampup`** — linear load ramp-up duration in seconds before reaching target concurrency ([#31](https://github.com/InseeFrLab/auto-tuning-vllm/pull/31))
 - **`benchmark.sample_requests`** — control per-request samples in benchmark JSON output (default `0` keeps files small; requires GuideLLM `>= 0.7.1`) ([#27](https://github.com/InseeFrLab/auto-tuning-vllm/pull/27))
+- **GuideLLM `>= 0.7.1` migration** — subprocess-based CLI runner, deadlock fix ([#37](https://github.com/InseeFrLab/auto-tuning-vllm/pull/37))
+- **Prompt / total token throughput** — parsed from GuideLLM output for objectives and `log_metrics` ([#29](https://github.com/InseeFrLab/auto-tuning-vllm/pull/29))
+- **Multimodal VLM benchmarks** — `guidellm_multimodal` profile for multi-image workloads ([#34](https://github.com/InseeFrLab/auto-tuning-vllm/pull/34))
+- **Trace replay benchmarks** — `guidellm_trace_replay` profile with optional prewarm ([#38](https://github.com/InseeFrLab/auto-tuning-vllm/pull/38), [#39](https://github.com/InseeFrLab/auto-tuning-vllm/pull/39))
+- **Prometheus metrics scraping** — optional vLLM `/metrics` scrape during benchmarks for `log_metrics` ([#35](https://github.com/InseeFrLab/auto-tuning-vllm/pull/35))
+
+### Speculative decoding
+
+- **Speculative decoding search space** — tune EAGLE3 / ngram / Medusa / MTP parameters from YAML ([#40](https://github.com/InseeFrLab/auto-tuning-vllm/pull/40))
+- **Limitations documented** — model-specific MTP vs EAGLE3 guidance in configuration reference ([#41](https://github.com/InseeFrLab/auto-tuning-vllm/pull/41))
 
 ### Bug fixes
 
@@ -59,9 +69,10 @@ The fork baseline is commit [`3c4264d`](https://github.com/InseeFrLab/auto-tunin
 ## Features
 
 - 🎯 **Flexible backends**: Local execution by default; optional Ray for distributed runs
-- 📊 **GuideLLM benchmarking**: Warmup/cooldown, output size control, synthetic or custom datasets
+- 📊 **GuideLLM benchmarking**: Warmup/cooldown, ramp-up, trace replay, multimodal VLM, synthetic or custom datasets
 - 🧮 **Rich objectives**: Multi-objective optimization with arithmetic metric expressions
 - 🔀 **Smart sampler selection**: Automatic grid or random mode based on search-space size
+- ⚡ **Speculative decoding**: Tune EAGLE3, ngram, Medusa, and MTP parameters from YAML
 - 📈 **Optuna integration**: User attributes for extra metrics; dashboard launcher included
 - 🗄️ **Flexible storage**: SQLite for local use, PostgreSQL for production (optional)
 - ⚙️ **Easy configuration**: YAML-based study and parameter configuration
@@ -117,6 +128,7 @@ auto-tune-vllm logs --study-name study_35884
 - [Quick Start Guide](docs/quick_start.md) — Get running in 5 minutes
 - [Architecture overview](docs/architecture.md) — How the framework works (diagrams)
 - [Configuration Reference](docs/configuration.md) — Complete YAML configuration guide
+- [Examples](examples/README.md) — Sample study YAMLs and Python demos
 - [Ray Cluster Setup](docs/ray_cluster_setup.md) — For distributed optimization (optional)
 - [AGENTS.md](AGENTS.md) — Guide for coding assistants and maintainers
 
@@ -137,13 +149,15 @@ This fork is actively being improved.
 - [x] Local execution backend (Ray optional)
 - [x] Custom metric expressions for objectives
 - [x] Grid cardinality and sampler auto-switch
-- [x] GuideLLM warmup/cooldown and `sample_requests`
+- [x] GuideLLM warmup/cooldown, ramp-up, and `sample_requests`
+- [x] GuideLLM trace replay and multimodal VLM profiles
+- [x] Prometheus metrics scraping for `log_metrics`
 - [x] Optuna Dashboard example launcher
 - [x] `optimization.log_metrics` for dashboard visibility
 - [x] Unit test suite (core + benchmarks)
 - [x] CI workflow (lint, pytest matrix, pre-commit)
 - [x] Architecture documentation and agent onboarding
-- [x] Support for speculative decoding parameters
+- [x] Speculative decoding parameter search space
 
 ### In progress
 
@@ -157,6 +171,7 @@ This fork is actively being improved.
 - [ ] Additional benchmark providers beyond GuideLLM
 - [ ] Support for alternative inference engines (e.g., SGLang)
 - [ ] Better parameter validation against vLLM CLI args
+- [ ] `optimization.n_repeats` and `optimization.no_repeat` (PRs [#28](https://github.com/InseeFrLab/auto-tuning-vllm/pull/28), [#32](https://github.com/InseeFrLab/auto-tuning-vllm/pull/32) open)
 
 ## Contributing
 

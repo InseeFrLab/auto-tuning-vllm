@@ -5,7 +5,7 @@
 ## 1. Configuration loading
 
 - YAML study file (`examples/study_config_local_exec.yaml` reference).
-- `StudyConfig.from_file()` in `core/config.py` — parse, validate objectives, storage, parameters.
+- `StudyConfig.from_file()` in `core/config.py` — parse, validate objectives, storage, parameters, speculative decoding block.
 - CLI `optimize` (`cli/main.py`) copies config beside SQLite when `storage_file` is set.
 
 ## 2. Study setup
@@ -22,6 +22,7 @@
 - Optimization: `study.ask()` → `TrialConfig` → `backend.submit_trial()` → poll → `study.tell()`.
 - Failures: error classification → trial user attrs.
 - Optional `optimization.log_metrics` → extra user attrs (PR #22).
+- Optional Prometheus scrape during benchmark (PR #35).
 
 ## 4. Backend (supported path)
 
@@ -34,10 +35,12 @@ Legacy: `RayExecutionBackend` exists for upstream compatibility; not the fork fo
 `BaseTrialController.run_trial()` (`execution/trial_controller.py`):
 
 1. Validate imports (vllm, guidellm, optuna).
-2. `GuideLLMBenchmark` from `benchmarks/providers.py`.
+2. `GuideLLMBenchmark` (or trace replay / multimodal variant) from `benchmarks/providers.py`.
 3. `_start_vllm_server()` → `_wait_for_server_ready()`.
 4. State machine: `WAITING_FOR_VLLM` → `RUNNING_BENCHMARK`.
 5. Metrics → objectives; `cleanup_resources()` on exit/cancel.
+
+Speculative decoding params merged into vLLM launch args via `core/speculative.py` (PR #40).
 
 ## 6. Storage & logs
 
