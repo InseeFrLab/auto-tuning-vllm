@@ -402,6 +402,13 @@ class BaselineConfig:
                     )
 
 
+def _default_baseline_concurrency(benchmark: BenchmarkConfig) -> list[int]:
+    """Default baseline concurrency levels from benchmark settings."""
+    if benchmark.benchmark_type == "guidellm_trace_replay":
+        return [1]
+    return [int(benchmark.rate)]
+
+
 @dataclass
 class StudyConfig:
     """Complete study configuration."""
@@ -708,7 +715,9 @@ class ConfigValidator:
             baseline_data = raw_config["baseline"]
             # If concurrency_levels not specified, inherit from benchmark rate
             if "concurrency_levels" not in baseline_data:
-                baseline_data["concurrency_levels"] = [benchmark.rate]
+                baseline_data["concurrency_levels"] = _default_baseline_concurrency(
+                    benchmark
+                )
             if baseline_data.get("enabled", True):  # Default is now True
                 # Ensure parameters field is a dict, not None
                 # (YAML can parse empty as None)
@@ -724,7 +733,8 @@ class ConfigValidator:
             # No baseline section in config
             # Create default baseline with benchmark rate
             baseline_config = BaselineConfig(
-                enabled=True, concurrency_levels=[benchmark.rate]
+                enabled=True,
+                concurrency_levels=_default_baseline_concurrency(benchmark),
             )
 
         # Handle constraint parsing

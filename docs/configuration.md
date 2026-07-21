@@ -373,7 +373,6 @@ benchmark:
   rate: 1
   dataset: "examples/trace_replay/sample.jsonl"
   profile:
-    kind: replay
     trace_format: trace_synthetic
 ```
 
@@ -388,10 +387,9 @@ Prompts are generated synthetically to match `input_length`; the replay profile 
 
 | Field | Description |
 |-------|-------------|
-| `benchmark_type` | Must be `"guidellm_trace_replay"` for trace replay workloads |
+| `benchmark_type` | Must be `"guidellm_trace_replay"` — selects the replay profile automatically |
 | `dataset` | Path to a JSONL, JSON, CSV, or Parquet trace file (required) |
-| `rate` | Reused as `time_scale` for the replay profile when `profile.time_scale` is omitted (`1.0` = real-time, `2.0` = half speed, `0.5` = double speed) |
-| `profile.kind` | Must be `"replay"` |
+| `rate` | Replay time scale when `profile.time_scale` is omitted (`1.0` = real-time, `2.0` = half speed, `0.5` = double speed). Supports fractional values. |
 | `profile.trace_format` | Trace deserializer: `"trace_synthetic"` (default) or `"mooncake"` |
 | `profile.time_scale` | Optional explicit time scale; overrides `rate` when set |
 | `profile.data_samples` | Optional cap on trace rows loaded via `--data-loader kind=pytorch,samples=N` |
@@ -407,7 +405,7 @@ See [examples/study_config_trace_replay.yaml](../examples/study_config_trace_rep
 
 ### Load Configuration
 
-#### `rate` (integer, optional)
+#### `rate` (float, optional)
 With `benchmark_type: "guidellm"` (concurrent profile), number of concurrent requests to maintain (`rate` → GuideLLM `streams`). This simulates realistic server load:
 - **Light load**: 10-20 requests
 - **Moderate load**: 50-100 requests

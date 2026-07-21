@@ -56,12 +56,12 @@ class ReplayProfile(BenchmarkProfile):
     hash_ids_column: str = "hash_ids"
     hash_id_block_size: int = 512
 
+    def effective_time_scale(self, config: BenchmarkConfig) -> float:
+        """Return ``time_scale`` or fall back to ``config.rate``."""
+        return self.time_scale if self.time_scale is not None else float(config.rate)
+
     def render_cli_profile(self, config: BenchmarkConfig) -> str:
-        scale = self.time_scale if self.time_scale is not None else float(config.rate)
-        if scale <= 0:
-            raise ValueError(
-                f"benchmark replay time_scale must be greater than 0; got {scale}"
-            )
+        scale = self.effective_time_scale(config)
         return f"kind=replay,time_scale={scale}"
 
     def validate(self, config: BenchmarkConfig) -> None:
@@ -69,6 +69,11 @@ class ReplayProfile(BenchmarkProfile):
             raise ValueError(
                 "benchmark profile 'replay' requires a trace dataset; "
                 "set benchmark.dataset to a JSONL file path"
+            )
+        scale = self.effective_time_scale(config)
+        if scale <= 0:
+            raise ValueError(
+                f"benchmark replay time_scale must be greater than 0; got {scale}"
             )
         if self.trace_format not in TRACE_FORMATS:
             raise ValueError(

@@ -19,7 +19,6 @@ class GuideLLMTraceReplayBenchmark(GuideLLMBenchmark):
                 "benchmark_type 'guidellm_trace_replay' requires profile.kind='replay'"
             )
 
-        profile.validate(config)
         cmd = self._build_guidellm_base_command(model_url, config, results_file)
         cmd.extend(render_replay_data_cli(config, profile))
         return cmd
