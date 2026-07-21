@@ -177,23 +177,19 @@ def _read_trace_dataframe(dataset_path: str) -> pd.DataFrame:
     )
 
 
-def default_prewarm_token_stats(config: BenchmarkConfig) -> dict[str, float | int]:
+def default_prewarm_token_stats(config: BenchmarkConfig) -> dict[str, int]:
     """Fallback token statistics for prewarm synthetic data from benchmark defaults."""
     prompt_stdev = (
-        float(config.prompt_tokens_stdev)
-        if config.prompt_tokens_stdev is not None
-        else 1.0
+        config.prompt_tokens_stdev if config.prompt_tokens_stdev is not None else 1
     )
     output_stdev = (
-        float(config.output_tokens_stdev)
-        if config.output_tokens_stdev is not None
-        else 1.0
+        config.output_tokens_stdev if config.output_tokens_stdev is not None else 1
     )
     return {
         "prompt_mean": max(1, config.prompt_tokens),
-        "prompt_stdev": max(1.0, prompt_stdev),
+        "prompt_stdev": max(1, prompt_stdev),
         "output_mean": max(1, config.output_tokens),
-        "output_stdev": max(1.0, output_stdev),
+        "output_stdev": max(1, output_stdev),
     }
 
 
@@ -201,7 +197,7 @@ def resolve_prewarm_token_stats(
     config: BenchmarkConfig,
     profile: ReplayProfile,
     logger: logging.Logger | None = None,
-) -> dict[str, float | int]:
+) -> dict[str, int]:
     """Derive prewarm token stats from a local trace file, or fall back to defaults."""
     dataset = config.dataset
     if dataset is None:
@@ -245,7 +241,7 @@ def compute_trace_token_stats(
     dataset_path: str,
     prompt_col: str,
     output_col: str,
-) -> dict[str, float | int]:
+) -> dict[str, int]:
     """Compute mean and stdev of prompt/output token lengths from a trace file."""
     if not os.path.exists(dataset_path):
         raise FileNotFoundError(f"Trace dataset file not found: {dataset_path}")
@@ -263,8 +259,8 @@ def compute_trace_token_stats(
 
     prompt_mean = max(1, int(round(prompt_series.mean())))
     output_mean = max(1, int(round(output_series.mean())))
-    prompt_stdev = max(1.0, float(prompt_series.std(ddof=0) or 0.0))
-    output_stdev = max(1.0, float(output_series.std(ddof=0) or 0.0))
+    prompt_stdev = max(1, int(round(prompt_series.std(ddof=0) or 0.0)))
+    output_stdev = max(1, int(round(output_series.std(ddof=0) or 0.0)))
 
     return {
         "prompt_mean": prompt_mean,
@@ -277,7 +273,7 @@ def compute_trace_token_stats(
 def render_prewarm_args(
     config: BenchmarkConfig,
     prewarm: dict[str, Any],
-    stats: dict[str, float | int],
+    stats: dict[str, int],
     results_file: str,
 ) -> list[str]:
     """Build GuideLLM CLI args for a concurrent prewarm run before trace replay."""

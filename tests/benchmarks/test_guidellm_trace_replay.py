@@ -205,8 +205,10 @@ def test_compute_trace_token_stats_from_sample_trace():
 
     assert stats["prompt_mean"] >= 1
     assert stats["output_mean"] >= 1
-    assert stats["prompt_stdev"] >= 1.0
-    assert stats["output_stdev"] >= 1.0
+    assert stats["prompt_stdev"] >= 1
+    assert stats["output_stdev"] >= 1
+    assert isinstance(stats["prompt_stdev"], int)
+    assert isinstance(stats["output_stdev"], int)
 
 
 def test_resolve_prewarm_token_stats_uses_trace_file():
@@ -270,9 +272,9 @@ def test_render_prewarm_args_uses_token_stats():
     )
     stats = {
         "prompt_mean": 400,
-        "prompt_stdev": 120.0,
+        "prompt_stdev": 120,
         "output_mean": 80,
-        "output_stdev": 30.0,
+        "output_stdev": 30,
     }
     args = render_prewarm_args(
         config, {"duration": 15, "concurrency": 2}, stats, "/tmp/prewarm.json"
@@ -283,6 +285,10 @@ def test_render_prewarm_args_uses_token_stats():
     data = json.loads(args[args.index("--data") + 1])
     assert data["prompt_tokens"] == 400
     assert data["output_tokens"] == 80
+    assert data["prompt_tokens_stdev"] == 120
+    assert data["output_tokens_stdev"] == 30
+    assert isinstance(data["prompt_tokens_stdev"], int)
+    assert isinstance(data["output_tokens_stdev"], int)
 
 
 def test_run_prewarm_failure_aborts_trial():
