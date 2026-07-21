@@ -26,7 +26,7 @@ logging:
 
 static_environment_variables:
   VLLM_USE_V1: "1"
-  VLLM_STARTUP_TIMEOUT: "300"
+  VLLM_STARTUP_TIMEOUT: "500"
 
 static_parameters:
   trust_remote_code: true
