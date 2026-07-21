@@ -109,6 +109,19 @@ class SpeculativeDecodingConfig:
                 "when enabled"
             )
 
+        method_names = [entry.method for entry in self.methods]
+        seen: set[str] = set()
+        duplicates: set[str] = set()
+        for name in method_names:
+            if name in seen:
+                duplicates.add(name)
+            seen.add(name)
+        if duplicates:
+            raise ValueError(
+                "speculative_decoding.methods contains duplicate method values: "
+                f"{sorted(duplicates)}. Each method may appear only once."
+            )
+
         has_rates = self.synthetic_acceptance_rates is not None
         has_length = self.synthetic_acceptance_length is not None
         if has_rates == has_length:

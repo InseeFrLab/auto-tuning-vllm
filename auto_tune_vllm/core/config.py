@@ -799,10 +799,20 @@ class ConfigValidator:
         if methods_raw is not None:
             if not isinstance(methods_raw, list):
                 raise TypeError("speculative_decoding.methods must be a list")
-            for entry in methods_raw:
+            for index, entry in enumerate(methods_raw):
                 if not isinstance(entry, dict):
                     raise TypeError(
                         "Each speculative_decoding.methods entry must be a mapping"
+                    )
+                if "method" not in entry:
+                    raise ValueError(
+                        f"speculative_decoding.methods[{index}] is missing required "
+                        "key 'method'"
+                    )
+                if "model" not in entry:
+                    raise ValueError(
+                        f"speculative_decoding.methods[{index}] is missing required "
+                        "key 'model'"
                     )
                 methods.append(
                     SpeculativeMethod(
