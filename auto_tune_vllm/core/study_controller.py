@@ -47,9 +47,10 @@ def _validate_speculative_vllm_version(config: StudyConfig) -> None:
     min_str = ".".join(str(part) for part in MIN_VLLM_VERSION)
     if not vllm_version_at_least(version, MIN_VLLM_VERSION):
         raise RuntimeError(
-            f"speculative_decoding requires vLLM >= {min_str}; "
-            f"installed version is {version!r}. "
-            "Upgrade vLLM or disable speculative_decoding in the study config."
+            f"speculative_decoding requires vLLM >= {min_str} "
+            f"(synthetic rejection sampling); installed version is {version!r}. "
+            f"Upgrade with: pip install -U 'vllm>=0.20' "
+            f"Or disable speculative_decoding in the study config."
         )
     logger.info(
         "speculative_decoding enabled (vLLM %s >= %s)",
