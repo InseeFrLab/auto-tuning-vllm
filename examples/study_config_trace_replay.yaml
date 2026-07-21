@@ -22,6 +22,12 @@ benchmark:
   dataset: "examples/trace_replay/sample.jsonl"
   profile:
     trace_format: trace_synthetic
+  # Optional prewarm: heats up vLLM kernels before the real replay run.
+  # Uses a short concurrent GuideLLM benchmark on synthetic data whose
+  # prompt/output token mean+stdev are auto-derived from the trace file.
+  # prewarm:
+  #   duration: 30
+  #   concurrency: 4
 
 logging:
   file_path: "./auto-tune-vllm-logs"

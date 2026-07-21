@@ -401,6 +401,35 @@ Prompts are generated synthetically to match `input_length`; the replay profile 
 
 `warmup`, `cooldown`, and `rampup` are not supported with the replay profile. Baseline trials use the same `rate` / `time_scale` semantics as optimization trials.
 
+#### Prewarm (kernel warmup)
+
+Optional pre-run phase for `guidellm_trace_replay` only. Distinct from `benchmark.warmup`: prewarm runs **before** the replay benchmark as a separate short GuideLLM subprocess, so vLLM kernel autotuners (CUDA graphs, torch.compile, etc.) can settle before timed replay requests.
+
+When `benchmark.prewarm` is set, auto-tune-vllm:
+
+1. Reads the trace file and computes mean/stdev of prompt and output token lengths (using `profile.prompt_tokens_column` and `profile.output_tokens_column`).
+2. Launches a concurrent GuideLLM run (`kind=concurrent`) for `duration` seconds with `concurrency` streams.
+3. Uses `kind=synthetic_text` data whose token mean/stdev match the trace statistics.
+4. Discards prewarm results and continues with the normal trace replay run.
+
+Prewarm failure does **not** fail the trial — a warning is logged and replay proceeds.
+
+```yaml
+benchmark:
+  benchmark_type: "guidellm_trace_replay"
+  dataset: "examples/trace_replay/sample.jsonl"
+  prewarm:
+    duration: 30      # seconds for the prewarm run
+    concurrency: 4    # concurrent streams during prewarm
+```
+
+| Field | Description |
+|-------|-------------|
+| `prewarm.duration` | Wall-clock seconds for the prewarm subprocess (`> 0`) |
+| `prewarm.concurrency` | Concurrent streams during prewarm (`> 0`) |
+
+Token statistics are derived automatically from the trace file; manual overrides are not supported in v1.
+
 See [examples/study_config_trace_replay.yaml](../examples/study_config_trace_replay.yaml) and [examples/trace_replay/sample.jsonl](../examples/trace_replay/sample.jsonl) for a full example.
 
 ### Load Configuration

@@ -54,6 +54,9 @@ class BenchmarkConfig:
     # GuideLLM benchmark profile (concurrent or replay). Omitted => concurrent.
     profile: Optional[dict] = None
 
+    # Optional kernel prewarm before trace replay (guidellm_trace_replay only).
+    prewarm: Optional[dict] = None
+
     # Set in benchmark section of study config
     # Logging level for GuideLLM
     logging_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
@@ -91,10 +94,44 @@ class BenchmarkConfig:
         if self.rate <= 0:
             raise ValueError(f"benchmark.rate must be greater than 0; got {self.rate}")
 
-        from .profiles import profile_from_dict
+        self._validate_prewarm()
+        if self.profile is not None:
+            from .profiles import profile_from_dict
 
-        profile = profile_from_dict(self.profile)
-        profile.validate(self)
+            profile = profile_from_dict(self.profile)
+            profile.validate(self)
+
+    def _validate_prewarm(self) -> None:
+        """Validate optional prewarm settings for trace replay benchmarks."""
+        if self.prewarm is None:
+            return
+
+        if self.benchmark_type != "guidellm_trace_replay":
+            raise ValueError(
+                "benchmark.prewarm is only supported with "
+                "benchmark_type='guidellm_trace_replay'"
+            )
+
+        allowed_keys = frozenset({"duration", "concurrency"})
+        unknown_keys = set(self.prewarm.keys()) - allowed_keys
+        if unknown_keys:
+            raise ValueError(
+                "benchmark.prewarm supports only duration and concurrency; "
+                f"got unexpected keys: {sorted(unknown_keys)}"
+            )
+
+        for key in ("duration", "concurrency"):
+            if key not in self.prewarm:
+                raise ValueError(f"benchmark.prewarm.{key} is required")
+            value = self.prewarm[key]
+            if not isinstance(value, (int, float)):
+                raise ValueError(
+                    f"benchmark.prewarm.{key} must be a number; got {value!r}"
+                )
+            if value <= 0:
+                raise ValueError(
+                    f"benchmark.prewarm.{key} must be greater than 0; got {value}"
+                )
 
     def _normalize_benchmark_profile(self) -> None:
         """Align ``benchmark.profile`` with ``benchmark_type`` (single source of truth)."""
