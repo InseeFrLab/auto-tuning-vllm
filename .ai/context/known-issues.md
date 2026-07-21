@@ -4,8 +4,8 @@ Update this file when merging fixes (no separate triage skill).
 
 | Title | Status | Link | Component | Next action |
 |-------|--------|------|-----------|-------------|
-| GuideLLM + vLLM ≥ 0.20 | open | [#19](https://github.com/InseeFrLab/auto-tuning-vllm/issues/19) | `providers.py`, deps | Merge #17 or document pins |
-| GuideLLM version pin | documented | `pyproject.toml` | deps | Pinned to `>=0.7.1`; standard path uses `guidellm run` CLI; multimodal uses `_guidellm_multimodal_runner` (Python API) |
+| GuideLLM + vLLM ≥ 0.20 | open | [#19](https://github.com/InseeFrLab/auto-tuning-vllm/issues/19) | `providers.py`, deps | Merge #17 or document pins; speculative decoding targets vLLM ≥ 0.20 |
+| GuideLLM version pin | documented | `pyproject.toml` | deps | Pinned to `>=0.7.1`; standard path uses `guidellm run` CLI; multimodal uses Python API runner |
 | GuideLLM + transformers ≥ 5 | open | [#15](https://github.com/InseeFrLab/auto-tuning-vllm/issues/15) | GuideLLM | Reproduce; track upstream |
 | Orphan vLLM on parent stop | open | [#2](https://github.com/InseeFrLab/auto-tuning-vllm/issues/2) | `trial_controller.py` | Merge #13 |
 | Local backend cleanup | fix pending | [#13](https://github.com/InseeFrLab/auto-tuning-vllm/pull/13) | `backends.py` | Merge PR |
@@ -13,6 +13,7 @@ Update this file when merging fixes (no separate triage skill).
 | CI pytest non-blocking | open | `ci.yml` | CI | Remove `\|\| true` when stable |
 | Basic usage tests | open | [#4](https://github.com/InseeFrLab/auto-tuning-vllm/issues/4) | `tests/` | Expand pytest |
 | Ray removal / deprecation | open | [#3](https://github.com/InseeFrLab/auto-tuning-vllm/issues/3) | `backends.py` | Legacy only; local path default |
+| Speculative MTP model support | documented | [#41](https://github.com/InseeFrLab/auto-tuning-vllm/pull/41) | `core/speculative.py` | Use EAGLE3 for models without native MTP (e.g. Qwen3-8B) |
 
 ## Code TODOs
 

@@ -1062,6 +1062,10 @@ Each trial stores `speculative_config` as a user attribute (`"disabled"` or the 
 
 ## Configuration Examples
 
+Ready-to-run YAML files live under [`examples/`](../examples/README.md): `study_config_local_exec.yaml` (full local study), `study_config_minimal.yaml` (smoke test), plus feature configs for speculative decoding, trace replay, and multimodal VLM.
+
+The snippets below are inline alternatives you can copy into your own config.
+
 ### Basic Development Configuration
 
 A minimal configuration for quick testing and development:

@@ -309,8 +309,11 @@ More complex parameter spaces need more trials. If you have many parameters enab
 
 ## Examples in This Repository
 
-- `study_config_local_exec.yaml`: High-throughput optimization
-- `study_config_no_postgres.yaml`: Low-latency optimization
-- `study_config_minimal.yaml`: Balanced multi-objective
-- `study_config.yaml`: Advanced throughput vs TTFT optimization
-- `study_config_optimization_examples.yaml`: Comprehensive examples
+See [`examples/README.md`](README.md) for the full list. Common starting points:
+
+- `study_config_local_exec.yaml` — full local study (high-throughput preset)
+- `study_config_minimal.yaml` — quick smoke test
+- `study_config.yaml` — multi-objective throughput vs TTFT
+- `study_config_speculative_decoding.yaml` — EAGLE3 speculative decoding
+- `study_config_trace_replay.yaml` — trace replay benchmarking
+- `study_config_vlm_multi_image.yaml` — multi-image VLM workloads

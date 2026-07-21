@@ -49,7 +49,7 @@ auto-tune-vllm --help
 
 ### 3) Configure the Study
 
-Start from [`examples/study_config_local_exec.yaml`](../examples/study_config_local_exec.yaml) for a full example configuration file.
+Start from [`examples/study_config_local_exec.yaml`](../examples/study_config_local_exec.yaml) for a full example configuration file. See [`examples/README.md`](../examples/README.md) for all sample configs (speculative decoding, trace replay, multimodal VLM, minimal smoke test).
 
 For a visual overview of the runtime, see [Architecture overview](architecture.md).
 
