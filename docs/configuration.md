@@ -399,7 +399,7 @@ Prompts are generated synthetically to match `input_length`; the replay profile 
 | `profile.hash_ids_column` | Mooncake-only hash ID list column (default: `"hash_ids"`) |
 | `profile.hash_id_block_size` | Mooncake-only tokens per hash ID block (default: `512`) |
 
-`warmup`, `cooldown`, and `rampup` are not supported with the replay profile. Baseline trials use the same `rate` / `time_scale` semantics as optimization trials.
+`warmup`, `cooldown`, and `rampup` are not supported with the replay profile. Replay speed is controlled by `benchmark.rate` (or `profile.time_scale`), not by `baseline.concurrency_levels` — see [Baseline Configuration](#baseline-configuration).
 
 #### Prewarm (kernel warmup)
 
@@ -407,12 +407,12 @@ Optional pre-run phase for `guidellm_trace_replay` only. Distinct from `benchmar
 
 When `benchmark.prewarm` is set, auto-tune-vllm:
 
-1. Reads the trace file and computes mean/stdev of prompt and output token lengths (using `profile.prompt_tokens_column` and `profile.output_tokens_column`).
+1. Derives mean/stdev of prompt and output token lengths from the local trace file when possible (using `profile.prompt_tokens_column` and `profile.output_tokens_column`). If the dataset is remote (`hf://`) or cannot be read locally, a warning is logged and `benchmark.prompt_tokens` / `benchmark.output_tokens` (plus optional stdev fields) are used instead.
 2. Launches a concurrent GuideLLM run (`kind=concurrent`) for `duration` seconds with `concurrency` streams.
-3. Uses `kind=synthetic_text` data whose token mean/stdev match the trace statistics.
-4. Discards prewarm results and continues with the normal trace replay run.
+3. Uses `kind=synthetic_text` data whose token mean/stdev match those statistics.
+4. Discards prewarm results and continues with the normal trace replay run only when prewarm succeeds.
 
-Prewarm failure does **not** fail the trial — a warning is logged and replay proceeds.
+If prewarm fails (non-zero exit, timeout, or cancellation), the trial is marked as failed and trace replay does **not** run.
 
 ```yaml
 benchmark:
@@ -428,7 +428,7 @@ benchmark:
 | `prewarm.duration` | Wall-clock seconds for the prewarm subprocess (`> 0`) |
 | `prewarm.concurrency` | Concurrent streams during prewarm (`> 0`) |
 
-Token statistics are derived automatically from the trace file; manual overrides are not supported in v1.
+Token statistics are derived from the trace file when it is available locally; otherwise defaults from `benchmark.prompt_tokens` / `benchmark.output_tokens` apply.
 
 See [examples/study_config_trace_replay.yaml](../examples/study_config_trace_replay.yaml) and [examples/trace_replay/sample.jsonl](../examples/trace_replay/sample.jsonl) for a full example.
 
@@ -642,7 +642,7 @@ baseline:
 
 #### Configuration Fields:
 - **`enabled`** (boolean, default: `true`): Enable baseline trials. Set to `false` to disable.
-- **`concurrency_levels`** (array, optional): List of concurrency levels to test baseline performance. If not specified, defaults to `[benchmark.rate]`.
+- **`concurrency_levels`** (array, optional): For concurrent benchmarks (`guidellm`, `guidellm_multimodal`), list of concurrency levels to run as separate baseline trials. If not specified, defaults to `[benchmark.rate]`. For trace replay (`guidellm_trace_replay`), defaults to `[1]` (one baseline trial). **This field does not set replay speed** — replay `time_scale` comes from `benchmark.rate` / `profile.time_scale` instead. Baseline trials always reuse the benchmark section as-is; `concurrency_levels` only controls how many baseline trials are enqueued and affects `--max-num-seqs` when a level exceeds 256.
 - **`parameters`** (dict, optional): Custom vLLM parameters to use for all baseline trials - Will override static_parameters if defined in both
 
 ### Baseline Trial Behavior

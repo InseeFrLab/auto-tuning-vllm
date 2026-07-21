@@ -10,10 +10,10 @@ from pathlib import Path
 from .config import BenchmarkConfig
 from .profiles import (
     ReplayProfile,
-    compute_trace_token_stats,
     profile_from_dict,
     render_prewarm_args,
     render_replay_data_cli,
+    resolve_prewarm_token_stats,
 )
 from .providers import GuideLLMBenchmark
 
@@ -64,11 +64,7 @@ class GuideLLMTraceReplayBenchmark(GuideLLMBenchmark):
         prewarm_results_file: str,
     ) -> list[str]:
         """Build a short concurrent GuideLLM run to warm up vLLM kernels."""
-        stats = compute_trace_token_stats(
-            config.dataset,
-            profile.prompt_tokens_column,
-            profile.output_tokens_column,
-        )
+        stats = resolve_prewarm_token_stats(config, profile, self._logger)
         processor = config.processor if config.processor is not None else config.model
 
         cmd = [
@@ -129,12 +125,14 @@ class GuideLLMTraceReplayBenchmark(GuideLLMBenchmark):
         try:
             returncode = process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
-            self._logger.warning(
+            self._logger.error(
                 f"Prewarm did not finish within {timeout:.0f}s; terminating prewarm"
             )
             self.terminate_benchmark()
             self._clear_process_handles()
-            return
+            raise RuntimeError(
+                f"Prewarm did not finish within {timeout:.0f}s; trial aborted"
+            )
 
         self._clear_process_handles()
 
@@ -146,8 +144,8 @@ class GuideLLMTraceReplayBenchmark(GuideLLMBenchmark):
             raise KeyboardInterrupt("Prewarm cancelled")
 
         log_tail = self.get_last_log_lines()
-        self._logger.warning(
-            f"Prewarm exited with code {returncode}; continuing with trace replay. "
+        raise RuntimeError(
+            f"Prewarm failed with exit code {returncode}; trial aborted. "
             f"Log tail:\n{log_tail}"
         )
 

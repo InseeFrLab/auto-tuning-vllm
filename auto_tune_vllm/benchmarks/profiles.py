@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -174,6 +175,70 @@ def _read_trace_dataframe(dataset_path: str) -> pd.DataFrame:
         f"Unsupported trace dataset format {suffix!r}; "
         "expected .jsonl, .json, .csv, or .parquet"
     )
+
+
+def default_prewarm_token_stats(config: BenchmarkConfig) -> dict[str, float | int]:
+    """Fallback token statistics for prewarm synthetic data from benchmark defaults."""
+    prompt_stdev = (
+        float(config.prompt_tokens_stdev)
+        if config.prompt_tokens_stdev is not None
+        else 1.0
+    )
+    output_stdev = (
+        float(config.output_tokens_stdev)
+        if config.output_tokens_stdev is not None
+        else 1.0
+    )
+    return {
+        "prompt_mean": max(1, config.prompt_tokens),
+        "prompt_stdev": max(1.0, prompt_stdev),
+        "output_mean": max(1, config.output_tokens),
+        "output_stdev": max(1.0, output_stdev),
+    }
+
+
+def resolve_prewarm_token_stats(
+    config: BenchmarkConfig,
+    profile: ReplayProfile,
+    logger: logging.Logger | None = None,
+) -> dict[str, float | int]:
+    """Derive prewarm token stats from a local trace file, or fall back to defaults."""
+    dataset = config.dataset
+    if dataset is None:
+        raise ValueError("Trace replay requires benchmark.dataset to be set")
+
+    if dataset.startswith("hf://"):
+        if logger is not None:
+            logger.warning(
+                "Cannot derive prewarm token stats from HuggingFace dataset %r; "
+                "using benchmark.prompt_tokens / benchmark.output_tokens defaults",
+                dataset,
+            )
+        return default_prewarm_token_stats(config)
+
+    if not os.path.exists(dataset):
+        if logger is not None:
+            logger.warning(
+                "Trace dataset file not found at %r; using benchmark.prompt_tokens / "
+                "benchmark.output_tokens defaults for prewarm",
+                dataset,
+            )
+        return default_prewarm_token_stats(config)
+
+    try:
+        return compute_trace_token_stats(
+            dataset,
+            profile.prompt_tokens_column,
+            profile.output_tokens_column,
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        if logger is not None:
+            logger.warning(
+                "Failed to derive prewarm token stats from trace file: %s; "
+                "using benchmark.prompt_tokens / benchmark.output_tokens defaults",
+                exc,
+            )
+        return default_prewarm_token_stats(config)
 
 
 def compute_trace_token_stats(
