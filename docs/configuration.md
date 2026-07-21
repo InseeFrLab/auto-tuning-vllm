@@ -846,7 +846,7 @@ When `speculative_decoding.enabled: true`, each optimization trial may:
 1. Run with speculative decoding **off** (when `allow_disabled: true`)
 2. Run with speculative decoding **on**, tuning:
    - **Method**: `mtp`, `eagle`, `eagle3`, or `dflash`
-   - **k** (`num_speculative_tokens`): depends on the synthetic acceptance mode (see below)
+   - **k** (`num_speculative_tokens`): fixed via `static_parameters`, tuned via `enabled`/`options`, or defaults to `len(rates)` (see below)
    - **Draft model** settings inside `--speculative-config`: `draft_tensor_parallel_size`, `max_model_len`
    - **Target model** settings via the normal `parameters:` block: `tensor_parallel_size`, `max_model_len`
 
@@ -878,7 +878,7 @@ speculative_decoding:
     max_model_len: 8192
 ```
 
-Allowed keys: `draft_tensor_parallel_size`, `max_model_len`.
+Allowed keys: `draft_tensor_parallel_size`, `max_model_len`, `num_speculative_tokens`.
 
 A key cannot appear in both `static_parameters` and an enabled tunable sub-block. To tune one setting while fixing the other:
 
@@ -896,22 +896,43 @@ speculative_decoding:
 
 Provide **exactly one** of:
 
-#### `synthetic_acceptance_rates` (k is tunable)
+#### `synthetic_acceptance_rates` (k is configurable)
 
-Optuna suggests `num_speculative_tokens` (k) from `1` to `len(rates)`. The list passed to vLLM is sliced to the first k values:
+The rates list defines the maximum acceptance profile length (`len(rates)`). Control **k** like other speculative sub-parameters:
+
+| Configuration | Behavior |
+|---------------|----------|
+| omit `num_speculative_tokens` and no static k | fixed k = `len(rates)` (uses the full rates list) |
+| `static_parameters.num_speculative_tokens: 2` | fixed k = 2 |
+| `num_speculative_tokens.enabled: true` with `options` | Optuna categorical over those k values |
+
+Each k must satisfy `1 <= k <= len(rates)`. vLLM receives the first k rates:
 
 ```yaml
 synthetic_acceptance_rates: [0.8, 0.7, 0.6, 0.5]
+num_speculative_tokens:
+  enabled: true
+  options: [2, 4]
 # k=2 -> synthetic_acceptance_rates: [0.8, 0.7]
+# k=4 -> synthetic_acceptance_rates: [0.8, 0.7, 0.6, 0.5]
+```
+
+Fixed k example:
+
+```yaml
+synthetic_acceptance_rates: [0.8, 0.7, 0.6, 0.5]
+static_parameters:
+  num_speculative_tokens: 2
 ```
 
 #### `synthetic_acceptance_length` (k is fixed)
 
-k is **not** suggested by Optuna. Set it explicitly with `num_speculative_tokens`:
+k is **not** tunable. Set it in `static_parameters`:
 
 ```yaml
 synthetic_acceptance_length: 4
-num_speculative_tokens: 4
+static_parameters:
+  num_speculative_tokens: 4
 ```
 
 ### Full Example
@@ -930,6 +951,9 @@ speculative_decoding:
       model: "RedHatAI/Qwen3-8B-speculator.eagle3"
 
   synthetic_acceptance_rates: [0.8, 0.7, 0.6]
+  num_speculative_tokens:
+    enabled: true
+    options: [2, 4]
 
   static_parameters:
     draft_tensor_parallel_size: 1

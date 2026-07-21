@@ -8,7 +8,7 @@ study:
 optimization:
   preset: "high_throughput"
   sampler: "tpe"
-  n_trials: 50
+  n_trials: 11
   max_concurrent_trials: 1
 
 benchmark:
@@ -21,12 +21,12 @@ benchmark:
   rate: 10
 
 logging:
-  file_path: "/tmp/auto-tune-vllm-spec-decode/logs"
+  file_path: "./auto-tune-vllm-spec-decode/logs"
   log_level: "INFO"
 
 static_environment_variables:
   VLLM_USE_V1: "1"
-  VLLM_STARTUP_TIMEOUT: "900"
+  VLLM_STARTUP_TIMEOUT: "300"
 
 static_parameters:
   trust_remote_code: true
@@ -34,19 +34,9 @@ static_parameters:
 
 # Target (verifier) model settings — top-level vLLM CLI args.
 parameters:
-  tensor_parallel_size:
-    enabled: true
-    options: [1]
-
   max_model_len:
     enabled: true
     options: [8192, 16384]
-
-  gpu_memory_utilization:
-    enabled: true
-    min: 0.85
-    max: 0.95
-    step: 0.05
 
 speculative_decoding:
   enabled: true
@@ -60,10 +50,19 @@ speculative_decoding:
       model: "RedHatAI/Qwen3-8B-speculator.eagle3"
 
   synthetic_acceptance_rates: [0.8, 0.7, 0.6, 0.5]
+  num_speculative_tokens:
+    enabled: true
+    options: [2, 4]
+
+  # Fixed k (mutually exclusive with enabled num_speculative_tokens above):
+  # static_parameters:
+  #   num_speculative_tokens: 2
+  # Omit num_speculative_tokens entirely -> k = len(rates)
 
   # Option B (mutually exclusive with synthetic_acceptance_rates):
   # synthetic_acceptance_length: 4
-  # num_speculative_tokens: 4
+  # static_parameters:
+  #   num_speculative_tokens: 4
 
   # Fixed draft settings (always injected into --speculative-config JSON).
   static_parameters:

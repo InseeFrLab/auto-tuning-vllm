@@ -841,6 +841,18 @@ class ConfigValidator:
                 "spec_max_model_len", max_model_len_raw
             )
 
+        num_speculative_tokens = None
+        num_spec_raw = raw.get("num_speculative_tokens")
+        if num_spec_raw is not None:
+            if not isinstance(num_spec_raw, dict):
+                raise TypeError(
+                    "speculative_decoding.num_speculative_tokens must be a mapping "
+                    f"(enabled/options), got {type(num_spec_raw).__name__}"
+                )
+            num_speculative_tokens = self._build_parameter_config(
+                "spec_num_speculative_tokens", num_spec_raw
+            )
+
         static_params: dict[str, int] = {}
         raw_static = raw.get("static_parameters") or {}
         if not isinstance(raw_static, dict):
@@ -859,7 +871,7 @@ class ConfigValidator:
             methods=methods,
             synthetic_acceptance_rates=raw.get("synthetic_acceptance_rates"),
             synthetic_acceptance_length=raw.get("synthetic_acceptance_length"),
-            num_speculative_tokens=raw.get("num_speculative_tokens"),
+            num_speculative_tokens=num_speculative_tokens,
             static_parameters=static_params,
             draft_tensor_parallel_size=draft_tp,
             max_model_len=max_model_len,

@@ -9,10 +9,12 @@ from typing import Any, Optional
 
 import optuna
 
-from .parameters import ParameterConfig
+from .parameters import ListParameter, ParameterConfig
 
 VALID_METHODS = frozenset({"mtp", "eagle", "eagle3", "dflash"})
-STATIC_SPEC_KEYS = frozenset({"draft_tensor_parallel_size", "max_model_len"})
+STATIC_SPEC_KEYS = frozenset(
+    {"draft_tensor_parallel_size", "max_model_len", "num_speculative_tokens"}
+)
 MIN_VLLM_VERSION = (0, 20)
 
 
@@ -63,7 +65,7 @@ class SpeculativeDecodingConfig:
     methods: list[SpeculativeMethod] = field(default_factory=list)
     synthetic_acceptance_rates: Optional[list[float]] = None
     synthetic_acceptance_length: Optional[int] = None
-    num_speculative_tokens: Optional[int] = None
+    num_speculative_tokens: Optional[ParameterConfig] = None
     static_parameters: dict[str, int] = field(default_factory=dict)
     draft_tensor_parallel_size: Optional[ParameterConfig] = None
     max_model_len: Optional[ParameterConfig] = None
@@ -81,24 +83,13 @@ class SpeculativeDecodingConfig:
                     f"positive integer; got {value!r}"
                 )
 
-        if (
-            "draft_tensor_parallel_size" in self.static_parameters
-            and self.draft_tensor_parallel_size is not None
-            and self.draft_tensor_parallel_size.enabled
-        ):
-            raise ValueError(
-                "draft_tensor_parallel_size cannot be both fixed in "
-                "speculative_decoding.static_parameters and enabled for tuning"
-            )
-        if (
-            "max_model_len" in self.static_parameters
-            and self.max_model_len is not None
-            and self.max_model_len.enabled
-        ):
-            raise ValueError(
-                "max_model_len cannot be both fixed in "
-                "speculative_decoding.static_parameters and enabled for tuning"
-            )
+        self._reject_static_and_tunable_conflict(
+            "draft_tensor_parallel_size", self.draft_tensor_parallel_size
+        )
+        self._reject_static_and_tunable_conflict("max_model_len", self.max_model_len)
+        self._reject_static_and_tunable_conflict(
+            "num_speculative_tokens", self.num_speculative_tokens
+        )
 
         if not self.enabled:
             return
@@ -141,6 +132,15 @@ class SpeculativeDecodingConfig:
                         "speculative_decoding.synthetic_acceptance_rates entries "
                         f"must be floats in [0, 1]; got {rate!r}"
                     )
+            max_k = len(self.synthetic_acceptance_rates)
+            static_k = self.static_parameters.get("num_speculative_tokens")
+            if static_k is not None:
+                self._validate_k(static_k, max_k)
+            if (
+                self.num_speculative_tokens is not None
+                and self.num_speculative_tokens.enabled
+            ):
+                self._validate_num_speculative_tokens_param(max_k)
         else:
             length = self.synthetic_acceptance_length
             if not isinstance(length, int) or length <= 0:
@@ -148,16 +148,84 @@ class SpeculativeDecodingConfig:
                     "speculative_decoding.synthetic_acceptance_length must be "
                     f"a positive integer; got {length!r}"
                 )
-            if self.num_speculative_tokens is None:
+            if (
+                self.num_speculative_tokens is not None
+                and self.num_speculative_tokens.enabled
+            ):
                 raise ValueError(
-                    "speculative_decoding.num_speculative_tokens is required when "
-                    "using synthetic_acceptance_length"
+                    "speculative_decoding.num_speculative_tokens cannot be enabled "
+                    "when using synthetic_acceptance_length"
                 )
-            if self.num_speculative_tokens <= 0:
+            static_k = self.static_parameters.get("num_speculative_tokens")
+            if static_k is None:
                 raise ValueError(
-                    "speculative_decoding.num_speculative_tokens must be > 0; "
-                    f"got {self.num_speculative_tokens}"
+                    "speculative_decoding.static_parameters.num_speculative_tokens "
+                    "is required when using synthetic_acceptance_length"
                 )
+            self._validate_k(static_k, length)
+
+    def _reject_static_and_tunable_conflict(
+        self, key: str, param: ParameterConfig | None
+    ) -> None:
+        if key in self.static_parameters and param is not None and param.enabled:
+            raise ValueError(
+                f"{key} cannot be both fixed in "
+                f"speculative_decoding.static_parameters and enabled for tuning"
+            )
+
+    def _validate_num_speculative_tokens_param(self, max_k: int) -> None:
+        param = self.num_speculative_tokens
+        if param is None or not param.enabled:
+            return
+        if not isinstance(param, ListParameter):
+            raise ValueError(
+                "speculative_decoding.num_speculative_tokens only supports "
+                "list options (enabled: true with options: [...])"
+            )
+        if not param.options:
+            raise ValueError(
+                "speculative_decoding.num_speculative_tokens.options must be "
+                "non-empty when enabled"
+            )
+        seen_k: set[int] = set()
+        for option in param.options:
+            if not isinstance(option, int):
+                raise ValueError(
+                    "speculative_decoding.num_speculative_tokens.options entries "
+                    f"must be integers; got {option!r}"
+                )
+            self._validate_k(option, max_k)
+            if option in seen_k:
+                raise ValueError(
+                    "speculative_decoding.num_speculative_tokens.options contains "
+                    f"duplicate values: {option}"
+                )
+            seen_k.add(option)
+
+    @staticmethod
+    def _validate_k(k: int, max_k: int) -> None:
+        if not isinstance(k, int) or k <= 0:
+            raise ValueError(
+                "speculative_decoding num_speculative_tokens values must be "
+                f"positive integers; got {k!r}"
+            )
+        if k > max_k:
+            raise ValueError(
+                f"speculative_decoding num_speculative_tokens value {k} exceeds "
+                f"the available synthetic acceptance slots ({max_k})"
+            )
+
+    def _resolve_num_speculative_tokens(self, trial: optuna.Trial, max_k: int) -> int:
+        """Resolve k for synthetic_acceptance_rates mode."""
+        static_k = self.static_parameters.get("num_speculative_tokens")
+        if static_k is not None:
+            return static_k
+        if (
+            self.num_speculative_tokens is not None
+            and self.num_speculative_tokens.enabled
+        ):
+            return int(self.num_speculative_tokens.generate_optuna_suggest(trial))
+        return max_k
 
     def suggest(self, trial: optuna.Trial) -> str | None:
         """Register Optuna sub-params and return the speculative-config JSON."""
@@ -175,7 +243,7 @@ class SpeculativeDecodingConfig:
 
         if self.synthetic_acceptance_rates is not None:
             rates = self.synthetic_acceptance_rates
-            k = trial.suggest_int("spec_num_speculative_tokens", low=1, high=len(rates))
+            k = self._resolve_num_speculative_tokens(trial, len(rates))
             acceptance_rates = rates[:k]
             spec_dict: dict[str, Any] = {
                 "method": chosen_method,
@@ -185,7 +253,7 @@ class SpeculativeDecodingConfig:
                 "synthetic_acceptance_rates": acceptance_rates,
             }
         else:
-            k = self.num_speculative_tokens
+            k = self.static_parameters["num_speculative_tokens"]
             spec_dict = {
                 "method": chosen_method,
                 "model": model,
