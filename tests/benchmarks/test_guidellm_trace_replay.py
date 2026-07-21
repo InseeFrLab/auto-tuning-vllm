@@ -3,14 +3,21 @@
 from __future__ import annotations
 
 import json
+import logging
+import subprocess
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from auto_tune_vllm.benchmarks.config import BenchmarkConfig
 from auto_tune_vllm.benchmarks.profiles import (
     ReplayProfile,
+    compute_trace_token_stats,
+    default_prewarm_token_stats,
     profile_from_dict,
+    render_prewarm_args,
     render_replay_data_cli,
+    resolve_prewarm_token_stats,
 )
 from auto_tune_vllm.benchmarks.trace_replay import GuideLLMTraceReplayBenchmark
 
@@ -173,3 +180,163 @@ def test_trace_replay_data_loader_when_data_samples_set():
 
     assert "--data-loader" in cmd
     assert cmd[cmd.index("--data-loader") + 1] == "kind=pytorch,samples=100"
+
+
+def test_prewarm_rejected_on_non_trace_replay_benchmark():
+    with pytest.raises(ValueError, match="benchmark.prewarm is only supported"):
+        BenchmarkConfig(
+            model="test-model",
+            prewarm={"duration": 30, "concurrency": 4},
+        )
+
+
+def test_prewarm_requires_duration_and_concurrency():
+    with pytest.raises(ValueError, match="benchmark.prewarm.duration is required"):
+        BenchmarkConfig(
+            benchmark_type="guidellm_trace_replay",
+            model="test-model",
+            dataset=_TRACE_DATASET,
+            prewarm={"concurrency": 4},
+        )
+
+
+def test_compute_trace_token_stats_from_sample_trace():
+    stats = compute_trace_token_stats(_TRACE_DATASET, "input_length", "output_length")
+
+    assert stats["prompt_mean"] >= 1
+    assert stats["output_mean"] >= 1
+    assert stats["prompt_stdev"] >= 1
+    assert stats["output_stdev"] >= 1
+    assert isinstance(stats["prompt_stdev"], int)
+    assert isinstance(stats["output_stdev"], int)
+
+
+def test_resolve_prewarm_token_stats_uses_trace_file():
+    config = BenchmarkConfig(
+        benchmark_type="guidellm_trace_replay",
+        model="test-model",
+        dataset=_TRACE_DATASET,
+    )
+    profile = ReplayProfile()
+
+    stats = resolve_prewarm_token_stats(config, profile)
+
+    assert stats == compute_trace_token_stats(
+        _TRACE_DATASET, profile.prompt_tokens_column, profile.output_tokens_column
+    )
+
+
+def test_resolve_prewarm_token_stats_hf_dataset_uses_defaults(caplog):
+    config = BenchmarkConfig(
+        benchmark_type="guidellm_trace_replay",
+        model="test-model",
+        dataset="hf://demo/trace",
+        prompt_tokens=512,
+        output_tokens=128,
+    )
+    profile = ReplayProfile()
+    logger = logging.getLogger("test.prewarm.hf")
+
+    with caplog.at_level(logging.WARNING, logger="test.prewarm.hf"):
+        stats = resolve_prewarm_token_stats(config, profile, logger)
+
+    assert stats == default_prewarm_token_stats(config)
+    assert "HuggingFace dataset" in caplog.text
+
+
+def test_resolve_prewarm_token_stats_missing_file_uses_defaults(caplog):
+    config = BenchmarkConfig(
+        benchmark_type="guidellm_trace_replay",
+        model="test-model",
+        dataset="/tmp/nonexistent_trace.jsonl",
+        prompt_tokens=256,
+        output_tokens=64,
+    )
+    profile = ReplayProfile()
+    logger = logging.getLogger("test.prewarm.missing")
+
+    with caplog.at_level(logging.WARNING, logger="test.prewarm.missing"):
+        stats = resolve_prewarm_token_stats(config, profile, logger)
+
+    assert stats == default_prewarm_token_stats(config)
+    assert "not found" in caplog.text
+
+
+def test_render_prewarm_args_uses_token_stats():
+    config = BenchmarkConfig(
+        benchmark_type="guidellm_trace_replay",
+        model="test-model",
+        dataset=_TRACE_DATASET,
+        samples=50,
+        sample_requests=0,
+    )
+    stats = {
+        "prompt_mean": 400,
+        "prompt_stdev": 120,
+        "output_mean": 80,
+        "output_stdev": 30,
+    }
+    args = render_prewarm_args(
+        config, {"duration": 15, "concurrency": 2}, stats, "/tmp/prewarm.json"
+    )
+
+    assert args[args.index("--profile") + 1] == "kind=concurrent,streams=2"
+    assert args[args.index("--constraint") + 1] == "kind=max_duration,seconds=15"
+    data = json.loads(args[args.index("--data") + 1])
+    assert data["prompt_tokens"] == 400
+    assert data["output_tokens"] == 80
+    assert data["prompt_tokens_stdev"] == 120
+    assert data["output_tokens_stdev"] == 30
+    assert isinstance(data["prompt_tokens_stdev"], int)
+    assert isinstance(data["output_tokens_stdev"], int)
+
+
+def test_run_prewarm_failure_aborts_trial():
+    benchmark = GuideLLMTraceReplayBenchmark()
+    benchmark._logger = logging.getLogger("test.prewarm.fail")
+    benchmark._results_file = "/tmp/trial_benchmark_results.json"
+
+    config = BenchmarkConfig(
+        benchmark_type="guidellm_trace_replay",
+        model="test-model",
+        dataset=_TRACE_DATASET,
+        prewarm={"duration": 10, "concurrency": 2},
+    )
+
+    mock_process = MagicMock()
+    mock_process.wait.return_value = 1
+
+    with patch.object(
+        GuideLLMTraceReplayBenchmark,
+        "_launch_subprocess",
+        return_value=mock_process,
+    ):
+        with pytest.raises(RuntimeError, match="Prewarm failed with exit code 1"):
+            benchmark._run_prewarm("http://localhost:8000/v1", config)
+
+
+def test_run_prewarm_timeout_aborts_trial():
+    benchmark = GuideLLMTraceReplayBenchmark()
+    benchmark._logger = logging.getLogger("test.prewarm.timeout")
+    benchmark._results_file = "/tmp/trial_benchmark_results.json"
+
+    config = BenchmarkConfig(
+        benchmark_type="guidellm_trace_replay",
+        model="test-model",
+        dataset=_TRACE_DATASET,
+        prewarm={"duration": 10, "concurrency": 2},
+    )
+
+    mock_process = MagicMock()
+    mock_process.wait.side_effect = subprocess.TimeoutExpired(
+        cmd=["guidellm"], timeout=50
+    )
+
+    with patch.object(
+        GuideLLMTraceReplayBenchmark,
+        "_launch_subprocess",
+        return_value=mock_process,
+    ):
+        with patch.object(GuideLLMTraceReplayBenchmark, "terminate_benchmark"):
+            with pytest.raises(RuntimeError, match="Prewarm did not finish"):
+                benchmark._run_prewarm("http://localhost:8000/v1", config)

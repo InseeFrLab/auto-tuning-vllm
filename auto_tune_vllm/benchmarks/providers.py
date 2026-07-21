@@ -233,7 +233,7 @@ class GuideLLMBenchmark(BenchmarkProvider):
             raise ValueError(f"Invalid model_url: {model_url!r} (expected http/https)")
 
     def _launch_subprocess(
-        self, cmd: list[str], config: BenchmarkConfig
+        self, cmd: list[str], config: BenchmarkConfig, log_path: str | None = None
     ) -> subprocess.Popen:
         """Launch a benchmark subprocess with the standard GuideLLM settings.
 
@@ -244,7 +244,10 @@ class GuideLLMBenchmark(BenchmarkProvider):
         env = os.environ.copy()
         env["GUIDELLM__LOGGING__CONSOLE_LOG_LEVEL"] = config.logging_level
 
-        self._benchmark_log_path = str(Path(self._results_file).with_suffix(".log"))
+        if log_path is not None:
+            self._benchmark_log_path = log_path
+        else:
+            self._benchmark_log_path = str(Path(self._results_file).with_suffix(".log"))
 
         # Parent handle can be closed right after Popen; the child keeps its
         # own duplicated fd.

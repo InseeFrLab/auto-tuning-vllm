@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
+
+import pandas as pd
 
 from .config import BenchmarkConfig
 
@@ -153,3 +157,147 @@ def render_replay_data_cli(
             ]
         )
     return cmd
+
+
+def _read_trace_dataframe(dataset_path: str) -> pd.DataFrame:
+    """Load a local trace file into a pandas DataFrame."""
+    path = Path(dataset_path)
+    suffix = path.suffix.lower()
+    if suffix == ".jsonl":
+        return pd.read_json(dataset_path, lines=True)
+    if suffix == ".json":
+        return pd.read_json(dataset_path)
+    if suffix == ".csv":
+        return pd.read_csv(dataset_path)
+    if suffix == ".parquet":
+        return pd.read_parquet(dataset_path)
+    raise ValueError(
+        f"Unsupported trace dataset format {suffix!r}; "
+        "expected .jsonl, .json, .csv, or .parquet"
+    )
+
+
+def default_prewarm_token_stats(config: BenchmarkConfig) -> dict[str, int]:
+    """Fallback token statistics for prewarm synthetic data from benchmark defaults."""
+    prompt_stdev = (
+        config.prompt_tokens_stdev if config.prompt_tokens_stdev is not None else 1
+    )
+    output_stdev = (
+        config.output_tokens_stdev if config.output_tokens_stdev is not None else 1
+    )
+    return {
+        "prompt_mean": max(1, config.prompt_tokens),
+        "prompt_stdev": max(1, prompt_stdev),
+        "output_mean": max(1, config.output_tokens),
+        "output_stdev": max(1, output_stdev),
+    }
+
+
+def resolve_prewarm_token_stats(
+    config: BenchmarkConfig,
+    profile: ReplayProfile,
+    logger: logging.Logger | None = None,
+) -> dict[str, int]:
+    """Derive prewarm token stats from a local trace file, or fall back to defaults."""
+    dataset = config.dataset
+    if dataset is None:
+        raise ValueError("Trace replay requires benchmark.dataset to be set")
+
+    if dataset.startswith("hf://"):
+        if logger is not None:
+            logger.warning(
+                "Cannot derive prewarm token stats from HuggingFace dataset %r; "
+                "using benchmark.prompt_tokens / benchmark.output_tokens defaults",
+                dataset,
+            )
+        return default_prewarm_token_stats(config)
+
+    if not os.path.exists(dataset):
+        if logger is not None:
+            logger.warning(
+                "Trace dataset file not found at %r; using benchmark.prompt_tokens / "
+                "benchmark.output_tokens defaults for prewarm",
+                dataset,
+            )
+        return default_prewarm_token_stats(config)
+
+    try:
+        return compute_trace_token_stats(
+            dataset,
+            profile.prompt_tokens_column,
+            profile.output_tokens_column,
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        if logger is not None:
+            logger.warning(
+                "Failed to derive prewarm token stats from trace file: %s; "
+                "using benchmark.prompt_tokens / benchmark.output_tokens defaults",
+                exc,
+            )
+        return default_prewarm_token_stats(config)
+
+
+def compute_trace_token_stats(
+    dataset_path: str,
+    prompt_col: str,
+    output_col: str,
+) -> dict[str, int]:
+    """Compute mean and stdev of prompt/output token lengths from a trace file."""
+    if not os.path.exists(dataset_path):
+        raise FileNotFoundError(f"Trace dataset file not found: {dataset_path}")
+
+    df = _read_trace_dataframe(dataset_path)
+    for col in (prompt_col, output_col):
+        if col not in df.columns:
+            raise ValueError(
+                f"Trace dataset missing required column {col!r}; "
+                f"available columns: {list(df.columns)}"
+            )
+
+    prompt_series = df[prompt_col]
+    output_series = df[output_col]
+
+    prompt_mean = max(1, int(round(prompt_series.mean())))
+    output_mean = max(1, int(round(output_series.mean())))
+    prompt_stdev = max(1, int(round(prompt_series.std(ddof=0) or 0.0)))
+    output_stdev = max(1, int(round(output_series.std(ddof=0) or 0.0)))
+
+    return {
+        "prompt_mean": prompt_mean,
+        "prompt_stdev": prompt_stdev,
+        "output_mean": output_mean,
+        "output_stdev": output_stdev,
+    }
+
+
+def render_prewarm_args(
+    config: BenchmarkConfig,
+    prewarm: dict[str, Any],
+    stats: dict[str, int],
+    results_file: str,
+) -> list[str]:
+    """Build GuideLLM CLI args for a concurrent prewarm run before trace replay."""
+    duration = prewarm["duration"]
+    concurrency = prewarm["concurrency"]
+    data_config: dict[str, Any] = {
+        "kind": "synthetic_text",
+        "prompt_tokens": stats["prompt_mean"],
+        "output_tokens": stats["output_mean"],
+        "prompt_tokens_stdev": stats["prompt_stdev"],
+        "output_tokens_stdev": stats["output_stdev"],
+    }
+
+    return [
+        "--profile",
+        f"kind=concurrent,streams={concurrency}",
+        "--constraint",
+        f"kind=max_duration,seconds={duration}",
+        "--metrics",
+        f"kind=generative,sample_size={config.sample_requests}",
+        "--output",
+        f"kind=json,path={results_file}",
+        "--data",
+        json.dumps(data_config),
+        "--data-loader",
+        f"kind=pytorch,samples={config.samples}",
+    ]
