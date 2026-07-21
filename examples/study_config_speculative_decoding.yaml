@@ -1,5 +1,5 @@
 # Speculative decoding optimization with synthetic rejection sampling (vLLM >= 0.20).
-# Target: Qwen/Qwen3-8B fits on a single A100 40GB with headroom for EAGLE3 draft.
+# Target: Qwen/Qwen3-8B on a single A100 40GB with EAGLE3 draft (no native MTP).
 # See docs/configuration.md#speculative-decoding-configuration.
 
 study:
@@ -42,12 +42,45 @@ speculative_decoding:
   enabled: true
   allow_disabled: true
 
-  # Qwen3-8B supports native MTP (method: mtp) and EAGLE3 via RedHat speculator.
+  # Qwen3-8B has no native MTP heads; EAGLE3 uses an external speculator checkpoint.
   methods:
-    - method: mtp
-      model: "Qwen/Qwen3-8B"  # target/verifier model for native MTP heads
     - method: eagle3
       model: "RedHatAI/Qwen3-8B-speculator.eagle3"
+
+  # --- Optional: Qwen3-Next native MTP (method: qwen3_next_mtp) ---
+  # Ref: https://docs.vllm.ai/projects/recipes/en/stable/Qwen/Qwen3-Next.html
+  #
+  # benchmark:
+  #   model: "Qwen/Qwen3-Next-80B-A3B-Instruct"
+  # methods:
+  #   - method: qwen3_next_mtp
+  #     # model is optional — MTP head is built into the target
+  #
+  # --- Optional: other native MTP (method: mtp) ---
+  # Only for targets that ship generic MTP support in vLLM (Qwen3.5, DeepSeek,
+  # Gemma 4, etc.). Qwen/Qwen3-8B does NOT support method: mtp.
+  # Ref: https://docs.vllm.ai/en/stable/features/speculative_decoding/mtp/
+  #
+  # Pattern A — MTP baked into the target (model must match benchmark.model):
+  # benchmark:
+  #   model: "Qwen/Qwen3.5-xxx"
+  # methods:
+  #   - method: mtp
+  #     model: "Qwen/Qwen3.5-xxx"
+  #
+  # Pattern B — separate assistant/auxiliary checkpoint (Gemma 4):
+  # benchmark:
+  #   model: "google/gemma-4-E2B-it"
+  # methods:
+  #   - method: mtp
+  #     model: "gg-hf-am/gemma-4-E2B-it-assistant"
+  #
+  # Pattern C — tune MTP vs EAGLE3 on the same study (list multiple methods):
+  # methods:
+  #   - method: mtp
+  #     model: "Qwen/Qwen3.5-xxx"
+  #   - method: eagle3
+  #     model: "RedHatAI/Qwen3-8B-speculator.eagle3"
 
   synthetic_acceptance_rates: [0.8, 0.7, 0.6, 0.5]
   num_speculative_tokens:

@@ -22,7 +22,11 @@ from .parameters import (
     ParameterConfig,
     RangeParameter,
 )
-from .speculative import SpeculativeDecodingConfig, SpeculativeMethod
+from .speculative import (
+    OPTIONAL_MODEL_METHODS,
+    SpeculativeDecodingConfig,
+    SpeculativeMethod,
+)
 
 
 @dataclass
@@ -809,15 +813,22 @@ class ConfigValidator:
                         f"speculative_decoding.methods[{index}] is missing required "
                         "key 'method'"
                     )
-                if "model" not in entry:
+                method = entry["method"]
+                if "model" not in entry and method not in OPTIONAL_MODEL_METHODS:
                     raise ValueError(
                         f"speculative_decoding.methods[{index}] is missing required "
                         "key 'model'"
                     )
+                model = entry.get("model", "")
+                if not model and method not in OPTIONAL_MODEL_METHODS:
+                    raise ValueError(
+                        f"speculative_decoding.methods[{index}] requires a non-empty "
+                        f"'model' for method {method!r}"
+                    )
                 methods.append(
                     SpeculativeMethod(
-                        method=entry["method"],
-                        model=entry["model"],
+                        method=method,
+                        model=model,
                     )
                 )
 

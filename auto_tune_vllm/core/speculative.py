@@ -11,7 +11,10 @@ import optuna
 
 from .parameters import ListParameter, ParameterConfig
 
-VALID_METHODS = frozenset({"mtp", "eagle", "eagle3", "dflash"})
+VALID_METHODS = frozenset({"mtp", "eagle", "eagle3", "dflash", "qwen3_next_mtp"})
+# Native MTP methods where the draft head lives in the target; `model` is optional
+# in study YAML and omitted from --speculative-config when unset.
+OPTIONAL_MODEL_METHODS = frozenset({"qwen3_next_mtp"})
 STATIC_SPEC_KEYS = frozenset(
     {"draft_tensor_parallel_size", "max_model_len", "num_speculative_tokens"}
 )
@@ -49,7 +52,7 @@ class SpeculativeMethod:
                 f"Invalid speculative method {self.method!r}. "
                 f"Valid options: {sorted(VALID_METHODS)}"
             )
-        if not self.model:
+        if not self.model and self.method not in OPTIONAL_MODEL_METHODS:
             raise ValueError(
                 f"speculative_decoding.methods entry for {self.method!r} "
                 "requires a non-empty model"
@@ -247,20 +250,22 @@ class SpeculativeDecodingConfig:
             acceptance_rates = rates[:k]
             spec_dict: dict[str, Any] = {
                 "method": chosen_method,
-                "model": model,
                 "num_speculative_tokens": k,
                 "rejection_sample_method": "synthetic",
                 "synthetic_acceptance_rates": acceptance_rates,
             }
+            if model:
+                spec_dict["model"] = model
         else:
             k = self.static_parameters["num_speculative_tokens"]
             spec_dict = {
                 "method": chosen_method,
-                "model": model,
                 "num_speculative_tokens": k,
                 "rejection_sample_method": "synthetic",
                 "synthetic_acceptance_length": self.synthetic_acceptance_length,
             }
+            if model:
+                spec_dict["model"] = model
 
         spec_dict.update(self.static_parameters)
 

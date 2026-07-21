@@ -845,7 +845,7 @@ When `speculative_decoding.enabled: true`, each optimization trial may:
 
 1. Run with speculative decoding **off** (when `allow_disabled: true`)
 2. Run with speculative decoding **on**, tuning:
-   - **Method**: `mtp`, `eagle`, `eagle3`, or `dflash`
+   - **Method**: `mtp`, `qwen3_next_mtp`, `eagle`, `eagle3`, or `dflash`
    - **k** (`num_speculative_tokens`): fixed via `static_parameters`, tuned via `enabled`/`options`, or defaults to `len(rates)` (see below)
    - **Draft model** settings inside `--speculative-config`: `draft_tensor_parallel_size`, `max_model_len`
    - **Target model** settings via the normal `parameters:` block: `tensor_parallel_size`, `max_model_len`
@@ -859,13 +859,50 @@ Each entry in `methods` maps a speculation method to its draft or auxiliary mode
 ```yaml
 speculative_decoding:
   methods:
-    - method: mtp
-      model: "Qwen/Qwen3-8B"  # use the target/verifier model for mtp
     - method: eagle3
       model: "RedHatAI/Qwen3-8B-speculator.eagle3"
 ```
 
-For **mtp**, set `model` to the same identifier as `benchmark.model` (the target/verifier model). **Qwen/Qwen3-8B** is a practical choice on a single A100 40GB: it supports native MTP and pairs with the Red Hat EAGLE3 speculator checkpoint above.
+**EAGLE3 / EAGLE / dflash:** set `model` to the external speculator or draft checkpoint (see the model card or vLLM docs).
+
+**MTP (native multi-token prediction):** only for targets that ship MTP support in vLLM (e.g. Qwen3-Next, Qwen3.5, DeepSeek, Gemma 4). **Qwen/Qwen3-8B does not support native MTP** — use EAGLE3 instead, as in [`examples/study_config_speculative_decoding.yaml`](../examples/study_config_speculative_decoding.yaml).
+
+**Qwen3-Next** uses the dedicated vLLM method `qwen3_next_mtp` (MTP head built into the target; `model` in `methods` is optional):
+
+```yaml
+benchmark:
+  model: "Qwen/Qwen3-Next-80B-A3B-Instruct"
+speculative_decoding:
+  methods:
+    - method: qwen3_next_mtp
+```
+
+When MTP applies for other families, set `model` as follows:
+
+| Case | `benchmark.model` | `methods[].model` |
+|------|-------------------|-------------------|
+| MTP heads in the target | same HF id | same as `benchmark.model` |
+| Separate assistant checkpoint (Gemma 4) | target model | assistant/auxiliary checkpoint |
+
+```yaml
+# Pattern A — MTP baked into the target
+benchmark:
+  model: "Qwen/Qwen3.5-xxx"
+speculative_decoding:
+  methods:
+    - method: mtp
+      model: "Qwen/Qwen3.5-xxx"
+
+# Pattern B — Gemma 4 assistant checkpoint
+benchmark:
+  model: "google/gemma-4-E2B-it"
+speculative_decoding:
+  methods:
+    - method: mtp
+      model: "gg-hf-am/gemma-4-E2B-it-assistant"
+```
+
+List multiple `methods` entries to let Optuna compare MTP vs EAGLE3 (or other methods) within one study.
 
 ### Static Parameters (Fixed Draft Settings)
 
@@ -945,8 +982,6 @@ speculative_decoding:
   allow_disabled: true
 
   methods:
-    - method: mtp
-      model: "Qwen/Qwen3-8B"
     - method: eagle3
       model: "RedHatAI/Qwen3-8B-speculator.eagle3"
 
@@ -971,10 +1006,12 @@ parameters:
     options: [8192, 16384]
 ```
 
+For native **MTP**, swap `benchmark.model` and `methods` per the patterns in [Method-to-Model Mapping](#method-to-model-mapping) (commented snippets in the example YAML).
+
 At runtime, enabled trials receive a single vLLM flag:
 
 ```bash
---speculative-config '{"method":"mtp","model":"...","num_speculative_tokens":2,"rejection_sample_method":"synthetic","synthetic_acceptance_rates":[0.8,0.7],...}'
+--speculative-config '{"method":"eagle3","model":"...","num_speculative_tokens":2,"rejection_sample_method":"synthetic","synthetic_acceptance_rates":[0.8,0.7],...}'
 ```
 
 ### Limitations
