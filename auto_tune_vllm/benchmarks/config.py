@@ -3,6 +3,9 @@
 from dataclasses import dataclass
 from typing import Literal, Optional
 
+CONCURRENT_DEFAULT_RATE = 50
+REPLAY_DEFAULT_RATE = 1.0
+
 
 @dataclass
 class BenchmarkConfig:
@@ -18,7 +21,7 @@ class BenchmarkConfig:
 
     # Advanced GuideLLM parameters
     processor: Optional[str] = None  # Processor model, defaults to model if not set
-    rate: float = 3  # Concurrent streams (guidellm) or replay time_scale fallback
+    rate: Optional[float] = None  # Concurrent streams or replay time_scale fallback
     samples: int = 1000  # Number of samples to take
 
     # Token statistics for synthetic data - only used when explicitly specified
@@ -82,10 +85,11 @@ class BenchmarkConfig:
             raise ValueError(
                 f"benchmark.sample_requests must be >= 0; got {self.sample_requests}"
             )
+        self._normalize_benchmark_profile()
+        self._apply_default_rate()
+
         if self.rate <= 0:
             raise ValueError(f"benchmark.rate must be greater than 0; got {self.rate}")
-
-        self._normalize_benchmark_profile()
 
         if self.profile is not None:
             from .profiles import profile_from_dict
@@ -113,6 +117,15 @@ class BenchmarkConfig:
                 "benchmark.profile.kind='replay' requires "
                 "benchmark_type='guidellm_trace_replay'"
             )
+
+    def _apply_default_rate(self) -> None:
+        """Apply profile-specific defaults when ``rate`` is omitted."""
+        if self.rate is not None:
+            return
+        if self.benchmark_type == "guidellm_trace_replay":
+            self.rate = REPLAY_DEFAULT_RATE
+        else:
+            self.rate = CONCURRENT_DEFAULT_RATE
 
     @property
     def use_synthetic_data(self) -> bool:

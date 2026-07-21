@@ -389,7 +389,7 @@ Prompts are generated synthetically to match `input_length`; the replay profile 
 |-------|-------------|
 | `benchmark_type` | Must be `"guidellm_trace_replay"` — selects the replay profile automatically |
 | `dataset` | Path to a JSONL, JSON, CSV, or Parquet trace file (required) |
-| `rate` | Replay time scale when `profile.time_scale` is omitted (`1.0` = real-time, `2.0` = half speed, `0.5` = double speed). Supports fractional values. |
+| `rate` | Replay time scale when `profile.time_scale` is omitted (`1.0` = real-time by default, `2.0` = half speed, `0.5` = double speed). Supports fractional values. |
 | `profile.trace_format` | Trace deserializer: `"trace_synthetic"` (default) or `"mooncake"` |
 | `profile.time_scale` | Optional explicit time scale; overrides `rate` when set |
 | `profile.data_samples` | Optional cap on trace rows loaded via `--data-loader kind=pytorch,samples=N` |
@@ -410,7 +410,7 @@ With `benchmark_type: "guidellm"` (concurrent profile), number of concurrent req
 - **Light load**: 10-20 requests
 - **Moderate load**: 50-100 requests
 - **Heavy load**: 200+ requests
-Default: 50
+Default when omitted: **50** for concurrent profiles (`guidellm`, `guidellm_multimodal`); **1.0** for `guidellm_trace_replay` (real-time replay).
 
 For `guidellm_trace_replay`, `rate` is reused as the replay profile's `time_scale` when `profile.time_scale` is not set.
 

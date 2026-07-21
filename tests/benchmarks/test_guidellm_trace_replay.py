@@ -35,6 +35,15 @@ def _profile_value(cmd: list[str]) -> str:
     return cmd[cmd.index("--profile") + 1]
 
 
+def test_trace_replay_default_rate_when_omitted():
+    config = BenchmarkConfig(
+        benchmark_type="guidellm_trace_replay",
+        model="test-model",
+        dataset=_TRACE_DATASET,
+    )
+    assert config.rate == 1.0
+
+
 def test_trace_replay_injects_profile_kind_from_benchmark_type():
     config = BenchmarkConfig(
         benchmark_type="guidellm_trace_replay",

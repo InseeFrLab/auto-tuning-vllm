@@ -21,6 +21,11 @@ def _profile_value(cmd: list[str]) -> str:
     return cmd[cmd.index("--profile") + 1]
 
 
+def test_concurrent_default_rate_when_omitted():
+    config = BenchmarkConfig(model="test-model")
+    assert config.rate == 50
+
+
 def test_command_uses_guidellm_run():
     cmd = _build_cmd()
     assert cmd[0:2] == ["guidellm", "run"]
