@@ -66,6 +66,15 @@ class VLLMCLIParser:
         self.sections: Dict[str, List[str]] = {}
         self._vllm_version: Optional[str] = None
 
+    @staticmethod
+    def _normalize_version_output(raw: str) -> str:
+        """Extract a semver-like version string from CLI or import output."""
+        for line in reversed(raw.strip().splitlines()):
+            candidate = line.strip()
+            if re.match(r"^\d+(?:\.\d+)*", candidate):
+                return candidate
+        raise ValueError(f"Could not parse vLLM version from output: {raw!r}")
+
     def get_vllm_version(self) -> str:
         """Get the vLLM version."""
         if self._vllm_version is not None:
@@ -74,23 +83,39 @@ class VLLMCLIParser:
         python_bin = (
             f"{self.venv_path}/bin/python" if self.venv_path else sys.executable
         )
-        try:
-            result = subprocess.run(
-                [python_bin, "-m", "vllm", "-v"],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-        except subprocess.CalledProcessError as err:
-            raise RuntimeError(
-                f"Failed to get vLLM version "
-                f"(exit {err.returncode}): {err.stderr or err.stdout}"
-            ) from err
+        errors: list[str] = []
 
-        # Extract version from output (format: "0.10.1.1")
-        version_line = result.stdout.strip().split("\n")[-1]
-        self._vllm_version = version_line.strip()
-        return self._vllm_version
+        try:
+            from importlib.metadata import version
+
+            self._vllm_version = version("vllm")
+            return self._vllm_version
+        except Exception as err:
+            errors.append(f"importlib.metadata.version('vllm'): {err}")
+
+        for command in (
+            [python_bin, "-c", "import vllm; print(vllm.__version__)"],
+            ["vllm", "--version"],
+            [python_bin, "-m", "vllm", "-v"],
+        ):
+            try:
+                result = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=30,
+                )
+                self._vllm_version = self._normalize_version_output(
+                    result.stdout or result.stderr
+                )
+                return self._vllm_version
+            except Exception as err:
+                errors.append(f"{' '.join(command)}: {err}")
+
+        raise RuntimeError(
+            "Failed to detect vLLM version. Tried:\n  - " + "\n  - ".join(errors)
+        )
 
     def get_help_output(self) -> str:
         """Execute 'vllm serve --help' and return the output."""

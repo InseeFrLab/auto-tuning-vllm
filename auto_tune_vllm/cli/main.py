@@ -374,7 +374,10 @@ def run_optimization_sync(
     """Synchronous optimization runner with progress display."""
     total_trials = n_trials or config.optimization.n_trials
     cardinality = get_parameter_grid_cardinality(config)
-    if total_trials >= cardinality:
+    spec_enabled = (
+        config.speculative_decoding is not None and config.speculative_decoding.enabled
+    )
+    if total_trials >= cardinality and not spec_enabled:
         requested = total_trials
         config.optimization.sampler = "grid"
         config.optimization.n_trials = cardinality
@@ -1103,15 +1106,11 @@ def validate_command(
             if study_config.optimization.is_multi_objective:
                 obj_summaries = []
                 for obj in study_config.optimization.objectives:
-                    obj_summaries.append(
-                        f"{obj.metric}:{obj.direction}"
-                    )
+                    obj_summaries.append(f"{obj.metric}:{obj.direction}")
                 opt_summary = f"multi_objective [{', '.join(obj_summaries)}]"
             else:
                 obj = study_config.optimization.objectives[0]
-                opt_summary = (
-                    f"single_objective {obj.metric}:{obj.direction}"
-                )
+                opt_summary = f"single_objective {obj.metric}:{obj.direction}"
         except Exception:
             opt_summary = str(
                 getattr(study_config.optimization, "objective", "unknown")
@@ -1121,10 +1120,27 @@ def validate_command(
         )
         table.add_row("Trials", str(study_config.optimization.n_trials))
         cardinality = get_parameter_grid_cardinality(study_config)
+        spec = study_config.speculative_decoding
+        spec_enabled = spec is not None and spec.enabled
+        cardinality_display = str(cardinality)
+        if spec_enabled:
+            cardinality_display += (
+                " (parameters only; excludes speculative search space)"
+            )
         table.add_row(
             "Possible combinations (grid cardinality)",
-            str(cardinality),
+            cardinality_display,
         )
+        if spec is None or not spec.enabled:
+            spec_display = "disabled"
+        else:
+            method_names = [entry.method for entry in spec.methods]
+            spec_display = (
+                f"enabled ({len(method_names)} methods: {', '.join(method_names)})"
+            )
+            if spec.allow_disabled:
+                spec_display += ", allow_disabled"
+        table.add_row("Speculative decoding", spec_display)
         table.add_row("Model", study_config.benchmark.model)
         table.add_row(
             "Parameters",

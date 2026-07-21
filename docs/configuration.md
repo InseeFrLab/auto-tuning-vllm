@@ -13,7 +13,8 @@ This guide provides detailed explanations of all configuration options available
 7. [Baseline Configuration](#baseline-configuration)
 8. [Environment Variables](#environment-variables)
 9. [Static Parameters](#static-parameters)
-10. [Configuration Examples](#configuration-examples)
+10. [Speculative Decoding Configuration](#speculative-decoding-configuration)
+11. [Configuration Examples](#configuration-examples)
 
 ## Configuration File Structure
 
@@ -25,6 +26,7 @@ Auto-tune-vllm uses YAML configuration files with several main sections. Each se
 - **`logging`**: Controls logging output and verbosity (optional)
 - **`parameters`**: Defines which vLLM parameters to optimize and their ranges
 - **`static_parameters`**: Defines vLLM parameters that remain constant across all trials (optional)
+- **`speculative_decoding`**: Configures speculative decoding search space (optional)
 - **`baseline`**: Configures baseline performance trials (optional)
 - **`static_environment_variables`**: Defines environment variables for all trials (optional)
 
@@ -828,6 +830,195 @@ baseline:
   parameters:
     gpu_memory_utilization: 0.9  # Only baseline trials use this
 ```
+
+## Speculative Decoding Configuration
+
+The `speculative_decoding` section enables tuning vLLM speculative decoding via **synthetic rejection sampling** (`rejection_sample_method: synthetic`). This lets you benchmark speculative decoding performance without a real draft model acceptance distribution.
+
+**Requirements:** vLLM **>= 0.20**. The optimizer checks the installed version at study startup and fails with a clear error if the version is too old.
+
+**Reference:** [vLLM speculative decoding docs](https://docs.vllm.ai/en/stable/features/speculative_decoding/)
+
+### What Gets Optimized
+
+When `speculative_decoding.enabled: true`, each optimization trial may:
+
+1. Run with speculative decoding **off** (when `allow_disabled: true`)
+2. Run with speculative decoding **on**, tuning:
+   - **Method**: `mtp`, `qwen3_next_mtp`, `eagle`, `eagle3`, or `dflash`
+   - **k** (`num_speculative_tokens`): fixed via `static_parameters`, tuned via `enabled`/`options`, or defaults to `len(rates)` (see below)
+   - **Draft model** settings inside `--speculative-config`: `draft_tensor_parallel_size`, `max_model_len`
+   - **Target model** settings via the normal `parameters:` block: `tensor_parallel_size`, `max_model_len`
+
+Baseline trials never use speculative decoding (natural reference without speculation).
+
+### Method-to-Model Mapping
+
+Each entry in `methods` maps a speculation method to its draft or auxiliary model:
+
+```yaml
+speculative_decoding:
+  methods:
+    - method: eagle3
+      model: "RedHatAI/Qwen3-8B-speculator.eagle3"
+```
+
+**EAGLE3 / EAGLE / dflash:** set `model` to the external speculator or draft checkpoint (see the model card or vLLM docs).
+
+**MTP (native multi-token prediction):** only for targets that ship MTP support in vLLM (e.g. Qwen3-Next, Qwen3.5, DeepSeek, Gemma 4). **Qwen/Qwen3-8B does not support native MTP** — use EAGLE3 instead, as in [`examples/study_config_speculative_decoding.yaml`](../examples/study_config_speculative_decoding.yaml).
+
+**Qwen3-Next** uses the dedicated vLLM method `qwen3_next_mtp` (MTP head built into the target; `model` in `methods` is optional):
+
+```yaml
+benchmark:
+  model: "Qwen/Qwen3-Next-80B-A3B-Instruct"
+speculative_decoding:
+  methods:
+    - method: qwen3_next_mtp
+```
+
+When MTP applies for other families, set `model` as follows:
+
+| Case | `benchmark.model` | `methods[].model` |
+|------|-------------------|-------------------|
+| MTP heads in the target | same HF id | same as `benchmark.model` |
+| Separate assistant checkpoint (Gemma 4) | target model | assistant/auxiliary checkpoint |
+
+```yaml
+# Pattern A — MTP baked into the target
+benchmark:
+  model: "Qwen/Qwen3.5-xxx"
+speculative_decoding:
+  methods:
+    - method: mtp
+      model: "Qwen/Qwen3.5-xxx"
+
+# Pattern B — Gemma 4 assistant checkpoint
+benchmark:
+  model: "google/gemma-4-E2B-it"
+speculative_decoding:
+  methods:
+    - method: mtp
+      model: "gg-hf-am/gemma-4-E2B-it-assistant"
+```
+
+List multiple `methods` entries to let Optuna compare MTP vs EAGLE3 (or other methods) within one study.
+
+### Static Parameters (Fixed Draft Settings)
+
+Use `speculative_decoding.static_parameters` to fix draft-level keys inside `--speculative-config` without tuning them:
+
+```yaml
+speculative_decoding:
+  static_parameters:
+    draft_tensor_parallel_size: 1
+    max_model_len: 8192
+```
+
+Allowed keys: `draft_tensor_parallel_size`, `max_model_len`, `num_speculative_tokens`.
+
+A key cannot appear in both `static_parameters` and an enabled tunable sub-block. To tune one setting while fixing the other:
+
+```yaml
+speculative_decoding:
+  static_parameters:
+    draft_tensor_parallel_size: 1
+
+  max_model_len:
+    enabled: true
+    options: [4096, 8192, 16384]
+```
+
+### Synthetic Acceptance Modes
+
+Provide **exactly one** of:
+
+#### `synthetic_acceptance_rates` (k is configurable)
+
+The rates list defines the maximum acceptance profile length (`len(rates)`). Control **k** like other speculative sub-parameters:
+
+| Configuration | Behavior |
+|---------------|----------|
+| omit `num_speculative_tokens` and no static k | fixed k = `len(rates)` (uses the full rates list) |
+| `static_parameters.num_speculative_tokens: 2` | fixed k = 2 |
+| `num_speculative_tokens.enabled: true` with `options` | Optuna categorical over those k values |
+
+Each k must satisfy `1 <= k <= len(rates)`. vLLM receives the first k rates:
+
+```yaml
+synthetic_acceptance_rates: [0.8, 0.7, 0.6, 0.5]
+num_speculative_tokens:
+  enabled: true
+  options: [2, 4]
+# k=2 -> synthetic_acceptance_rates: [0.8, 0.7]
+# k=4 -> synthetic_acceptance_rates: [0.8, 0.7, 0.6, 0.5]
+```
+
+Fixed k example:
+
+```yaml
+synthetic_acceptance_rates: [0.8, 0.7, 0.6, 0.5]
+static_parameters:
+  num_speculative_tokens: 2
+```
+
+#### `synthetic_acceptance_length` (k is fixed)
+
+k is **not** tunable. Set it in `static_parameters`:
+
+```yaml
+synthetic_acceptance_length: 4
+static_parameters:
+  num_speculative_tokens: 4
+```
+
+### Full Example
+
+See [`examples/study_config_speculative_decoding.yaml`](../examples/study_config_speculative_decoding.yaml).
+
+```yaml
+speculative_decoding:
+  enabled: true
+  allow_disabled: true
+
+  methods:
+    - method: eagle3
+      model: "RedHatAI/Qwen3-8B-speculator.eagle3"
+
+  synthetic_acceptance_rates: [0.8, 0.7, 0.6]
+  num_speculative_tokens:
+    enabled: true
+    options: [2, 4]
+
+  static_parameters:
+    draft_tensor_parallel_size: 1
+
+  max_model_len:
+    enabled: true
+    options: [4096, 8192, 16384]
+
+parameters:
+  tensor_parallel_size:
+    enabled: true
+    options: [1]
+  max_model_len:
+    enabled: true
+    options: [8192, 16384]
+```
+
+For native **MTP**, swap `benchmark.model` and `methods` per the patterns in [Method-to-Model Mapping](#method-to-model-mapping) (commented snippets in the example YAML).
+
+At runtime, enabled trials receive a single vLLM flag:
+
+```bash
+--speculative-config '{"method":"eagle3","model":"...","num_speculative_tokens":2,"rejection_sample_method":"synthetic","synthetic_acceptance_rates":[0.8,0.7],...}'
+```
+
+### Limitations
+
+- **Grid sampler incompatible:** `optimization.sampler: grid` is rejected when speculative decoding is enabled (conditional search space: on/off toggle and k slicing).
+- **Constraints:** Optuna `constraints:` cannot reference speculative sub-parameters (`spec_method`, `spec_num_speculative_tokens`, etc.). Only the composed JSON appears in trial parameters as `speculative_config`.
+- **Optuna user attributes:** Each trial stores `speculative_config` as a user attribute (`"disabled"` or the JSON string) for dashboard visibility.
 
 ## Configuration Examples
 

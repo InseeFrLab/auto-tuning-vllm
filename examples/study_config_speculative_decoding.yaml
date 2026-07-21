@@ -1,0 +1,107 @@
+# Speculative decoding optimization with synthetic rejection sampling (vLLM >= 0.20).
+# Target: Qwen/Qwen3-8B on a single A100 40GB with EAGLE3 draft (no native MTP).
+# See docs/configuration.md#speculative-decoding-configuration.
+
+study:
+  prefix: "spec_decode_qwen3"
+
+optimization:
+  preset: "high_throughput"
+  sampler: "tpe"
+  n_trials: 11
+  max_concurrent_trials: 1
+
+benchmark:
+  benchmark_type: "guidellm"
+  model: "Qwen/Qwen3-8B"
+  max_seconds: 300
+  dataset: null
+  prompt_tokens: 1000
+  output_tokens: 1000
+  rate: 10
+
+logging:
+  file_path: "./auto-tune-vllm-spec-decode/logs"
+  log_level: "INFO"
+
+static_environment_variables:
+  VLLM_USE_V1: "1"
+  VLLM_STARTUP_TIMEOUT: "500"
+
+static_parameters:
+  trust_remote_code: true
+  enable_server_load_tracking: true
+
+# Target (verifier) model settings — top-level vLLM CLI args.
+parameters:
+  max_model_len:
+    enabled: true
+    options: [8192, 16384]
+
+speculative_decoding:
+  enabled: true
+  allow_disabled: true
+
+  # Qwen3-8B has no native MTP heads; EAGLE3 uses an external speculator checkpoint.
+  methods:
+    - method: eagle3
+      model: "RedHatAI/Qwen3-8B-speculator.eagle3"
+
+  # --- Optional: Qwen3-Next native MTP (method: qwen3_next_mtp) ---
+  # Ref: https://docs.vllm.ai/projects/recipes/en/stable/Qwen/Qwen3-Next.html
+  #
+  # benchmark:
+  #   model: "Qwen/Qwen3-Next-80B-A3B-Instruct"
+  # methods:
+  #   - method: qwen3_next_mtp
+  #     # model is optional — MTP head is built into the target
+  #
+  # --- Optional: other native MTP (method: mtp) ---
+  # Only for targets that ship generic MTP support in vLLM (Qwen3.5, DeepSeek,
+  # Gemma 4, etc.). Qwen/Qwen3-8B does NOT support method: mtp.
+  # Ref: https://docs.vllm.ai/en/stable/features/speculative_decoding/mtp/
+  #
+  # Pattern A — MTP baked into the target (model must match benchmark.model):
+  # benchmark:
+  #   model: "Qwen/Qwen3.5-xxx"
+  # methods:
+  #   - method: mtp
+  #     model: "Qwen/Qwen3.5-xxx"
+  #
+  # Pattern B — separate assistant/auxiliary checkpoint (Gemma 4):
+  # benchmark:
+  #   model: "google/gemma-4-E2B-it"
+  # methods:
+  #   - method: mtp
+  #     model: "gg-hf-am/gemma-4-E2B-it-assistant"
+  #
+  # Pattern C — tune MTP vs EAGLE3 on the same study (list multiple methods):
+  # methods:
+  #   - method: mtp
+  #     model: "Qwen/Qwen3.5-xxx"
+  #   - method: eagle3
+  #     model: "RedHatAI/Qwen3-8B-speculator.eagle3"
+
+  synthetic_acceptance_rates: [0.8, 0.7, 0.6, 0.5]
+  num_speculative_tokens:
+    enabled: true
+    options: [2, 4]
+
+  # Fixed k (mutually exclusive with enabled num_speculative_tokens above):
+  # static_parameters:
+  #   num_speculative_tokens: 2
+  # Omit num_speculative_tokens entirely -> k = len(rates)
+
+  # Option B (mutually exclusive with synthetic_acceptance_rates):
+  # synthetic_acceptance_length: 4
+  # static_parameters:
+  #   num_speculative_tokens: 4
+
+  # Fixed draft settings (always injected into --speculative-config JSON).
+  static_parameters:
+    draft_tensor_parallel_size: 1
+
+  # Tune draft max_model_len; draft_tensor_parallel_size is fixed above.
+  max_model_len:
+    enabled: true
+    options: [4096, 8192, 16384]

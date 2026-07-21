@@ -143,6 +143,7 @@ This fork is actively being improved.
 - [x] Unit test suite (core + benchmarks)
 - [x] CI workflow (lint, pytest matrix, pre-commit)
 - [x] Architecture documentation and agent onboarding
+- [x] Support for speculative decoding parameters
 
 ### In progress
 
@@ -153,7 +154,6 @@ This fork is actively being improved.
 
 ### Future work
 
-- [ ] Support for speculative decoding parameters
 - [ ] Additional benchmark providers beyond GuideLLM
 - [ ] Support for alternative inference engines (e.g., SGLang)
 - [ ] Better parameter validation against vLLM CLI args
