@@ -52,7 +52,7 @@ def test_multimodal_requires_data_preprocessors():
 
 def test_multimodal_command_includes_multimodal_args():
     cmd = _build_cmd(
-        request_format="chat_completions",
+        request_format="/v1/chat/completions",
         data_column_mapper={"text_column": "prompt", "image_column": "image"},
         data_preprocessors_kwargs={"base_dirs": ["examples/vlm_multi_image"]},
         data_args={"split": "train"},
@@ -60,7 +60,7 @@ def test_multimodal_command_includes_multimodal_args():
     )
 
     assert "--request-format" in cmd
-    assert cmd[cmd.index("--request-format") + 1] == "chat_completions"
+    assert cmd[cmd.index("--request-format") + 1] == "/v1/chat/completions"
     assert "--data-preprocessors" in cmd
     assert (
         cmd[cmd.index("--data-preprocessors") + 1] == "flatten_image_lists,encode_media"

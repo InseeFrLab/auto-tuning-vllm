@@ -52,7 +52,7 @@ class GuideLLMMultimodalBenchmark(GuideLLMBenchmark):
             "--dataset",
             config.dataset,
             "--request-format",
-            config.request_format or "chat_completions",
+            config.request_format or "/v1/chat/completions",
             "--max-seconds",
             str(config.max_seconds),
             "--rate",

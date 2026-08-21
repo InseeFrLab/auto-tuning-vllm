@@ -42,6 +42,10 @@ def _profile_value(cmd: list[str]) -> str:
     return cmd[cmd.index("--profile") + 1]
 
 
+def _backend_value(cmd: list[str]) -> str:
+    return cmd[cmd.index("--backend") + 1]
+
+
 def test_trace_replay_default_rate_when_omitted():
     config = BenchmarkConfig(
         benchmark_type="guidellm_trace_replay",
@@ -133,6 +137,11 @@ def test_trace_replay_command_without_explicit_profile_section():
         "prompt_tokens_column": "input_length",
         "output_tokens_column": "output_length",
     }
+
+
+def test_trace_replay_command_includes_request_format_when_set():
+    cmd = _build_cmd(request_format="/v1/completions")
+    assert "request_format=/v1/completions" in _backend_value(cmd)
 
 
 def test_trace_replay_command_uses_trace_format_from_profile():

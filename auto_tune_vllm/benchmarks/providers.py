@@ -362,11 +362,19 @@ class GuideLLMBenchmark(BenchmarkProvider):
         processor = config.processor if config.processor is not None else config.model
         profile = profile_from_dict(config.profile)
 
+        backend_parts = [
+            "kind=openai_http",
+            f"target={model_url}",
+            f"model={config.model}",
+        ]
+        if config.request_format is not None:
+            backend_parts.append(f"request_format={config.request_format}")
+
         return [
             "guidellm",
             "run",
             "--backend",
-            f"kind=openai_http,target={model_url},model={config.model}",
+            ",".join(backend_parts),
             "--tokenizer",
             json.dumps(
                 {
