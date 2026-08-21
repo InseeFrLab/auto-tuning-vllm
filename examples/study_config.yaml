@@ -35,6 +35,9 @@ benchmark:
   # cooldown: 0.1
   # rampup: 10
   # sample_requests: 0  # default; increase to keep detailed request samples in benchmark JSON
+  # Optional: OpenAI endpoint to benchmark. Omit for GuideLLM's default
+  # (/v1/chat/completions). Valid: /v1/completions, /v1/chat/completions, /v1/responses
+  # request_format: "/v1/completions"
 
 logging:
   file_path: "/tmp/auto-tune-vllm-logs" # Optional local file path

@@ -74,16 +74,6 @@ def _resolve_preprocessors(
     return resolved
 
 
-def _normalize_request_format(request_format: str) -> str:
-    legacy_aliases = {
-        "text_completions": "/v1/completions",
-        "chat_completions": "/v1/chat/completions",
-        "audio_transcriptions": "/v1/audio/transcriptions",
-        "audio_translations": "/v1/audio/translations",
-    }
-    return legacy_aliases.get(request_format, request_format)
-
-
 def _file_data_kind(dataset: str) -> str:
     suffix = Path(dataset).suffix.lower()
     if suffix in {".csv"}:
@@ -161,7 +151,7 @@ async def _run(args: argparse.Namespace) -> None:
             "kind": "openai_http",
             "target": args.target,
             "model": args.model,
-            "request_format": _normalize_request_format(args.request_format),
+            "request_format": args.request_format,
         },
         "profile": profile,
         "constraints": [{"kind": "max_duration", "seconds": args.max_seconds}],

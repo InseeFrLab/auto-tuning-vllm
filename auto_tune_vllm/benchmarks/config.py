@@ -6,6 +6,15 @@ from typing import Literal, Optional
 CONCURRENT_DEFAULT_RATE = 50
 REPLAY_DEFAULT_RATE = 1.0
 
+# OpenAI-compatible endpoints GuideLLM can target. Restricted to generative text
+# endpoints: the results parser expects TTFT/ITL/output-token metrics, which
+# non-generative endpoints (embeddings, pooling) do not produce.
+SUPPORTED_REQUEST_FORMATS = (
+    "/v1/completions",
+    "/v1/chat/completions",
+    "/v1/responses",
+)
+
 
 @dataclass
 class BenchmarkConfig:
@@ -23,6 +32,10 @@ class BenchmarkConfig:
     processor: Optional[str] = None  # Processor model, defaults to model if not set
     rate: Optional[float] = None  # Concurrent streams or replay time_scale fallback
     samples: int = 1000  # Number of samples to take
+
+    # OpenAI endpoint targeted by the benchmark. None => GuideLLM default
+    # (/v1/chat/completions); left unset the emitted command is unchanged.
+    request_format: Optional[str] = None
 
     # Token statistics for synthetic data - only used when explicitly specified
     prompt_tokens_stdev: Optional[int] = None
@@ -49,7 +62,6 @@ class BenchmarkConfig:
     data_preprocessors: Optional[list[str]] = None
     data_preprocessors_kwargs: Optional[dict] = None
     data_finalizer: Optional[str] = None
-    request_format: Optional[str] = None
 
     # GuideLLM benchmark profile (concurrent or replay). Omitted => concurrent.
     profile: Optional[dict] = None
@@ -95,6 +107,7 @@ class BenchmarkConfig:
             raise ValueError(f"benchmark.rate must be greater than 0; got {self.rate}")
 
         self._validate_prewarm()
+        self._validate_request_format()
         if self.profile is not None:
             from .profiles import profile_from_dict
 
@@ -132,6 +145,16 @@ class BenchmarkConfig:
                 raise ValueError(
                     f"benchmark.prewarm.{key} must be greater than 0; got {value}"
                 )
+
+    def _validate_request_format(self) -> None:
+        """Reject unsupported endpoints before a GPU trial is started."""
+        if self.request_format is None:
+            return
+        if self.request_format not in SUPPORTED_REQUEST_FORMATS:
+            raise ValueError(
+                f"benchmark.request_format={self.request_format!r} is not supported; "
+                f"expected one of {list(SUPPORTED_REQUEST_FORMATS)}"
+            )
 
     def _normalize_benchmark_profile(self) -> None:
         """Align ``benchmark.profile`` with ``benchmark_type`` (single source of truth)."""

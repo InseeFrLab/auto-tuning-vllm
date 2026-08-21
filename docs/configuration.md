@@ -273,6 +273,19 @@ Duration in seconds for each benchmark run. Longer benchmarks provide more accur
 - **Production**: 300-600 seconds for stable measurements
 Default: 300 seconds
 
+#### `request_format` (string, optional)
+OpenAI-compatible endpoint path targeted by GuideLLM's `openai_http` backend. Applies to all built-in benchmark providers (`guidellm`, `guidellm_trace_replay`, `guidellm_multimodal`).
+
+| Value | Endpoint |
+|-------|----------|
+| `"/v1/completions"` | Text completions (no chat template) |
+| `"/v1/chat/completions"` | Chat completions (default when omitted) |
+| `"/v1/responses"` | OpenAI Responses API |
+
+When omitted, GuideLLM defaults to `/v1/chat/completions` and the emitted CLI command does not include `request_format` (unchanged behavior for existing configs).
+
+**Note:** `/v1/completions` does not apply the chat template, so prompt token counts and TTFT are not directly comparable with `/v1/chat/completions`. Keep `request_format` constant within a study; do not compare results across studies that use different endpoints.
+
 ### Workload Configuration
 
 The benchmark needs a workload to test against. Auto-tune-vllm supports both synthetic data generation and real datasets.
@@ -343,7 +356,7 @@ For vision models served via vLLM, point `dataset` at a JSONL file where each li
 | Field | Description |
 |-------|-------------|
 | `benchmark_type` | Must be `"guidellm_multimodal"` for multi-image JSONL workloads |
-| `request_format` | OpenAI request format for the backend, e.g. `"chat_completions"` for VLMs |
+| `request_format` | OpenAI endpoint path, e.g. `"/v1/chat/completions"` for VLMs |
 | `data_column_mapper` | Maps JSONL columns to GuideLLM fields as a flat mapping, e.g. `text_column: prompt`, `image_column: image` |
 | `data_preprocessors` | Ordered list, e.g. `["flatten_image_lists", "encode_media"]` |
 | `data_preprocessors_kwargs` | Arguments passed to preprocessors, e.g. `base_dirs` for resolving relative image paths (used as provided; for local JSONL datasets the runner also searches `Path.cwd()` and the dataset file's parent directory) |

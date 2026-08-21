@@ -25,7 +25,7 @@ benchmark:
   rate: 1
   sample_requests: 5
   dataset: "examples/vlm_multi_image/data.jsonl"
-  request_format: "chat_completions"
+  request_format: "/v1/chat/completions"
   data_column_mapper:
     text_column: "prompt"
     image_column: "image"

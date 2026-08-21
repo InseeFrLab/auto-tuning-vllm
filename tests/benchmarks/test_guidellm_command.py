@@ -21,6 +21,10 @@ def _profile_value(cmd: list[str]) -> str:
     return cmd[cmd.index("--profile") + 1]
 
 
+def _backend_value(cmd: list[str]) -> str:
+    return cmd[cmd.index("--backend") + 1]
+
+
 def test_concurrent_default_rate_when_omitted():
     config = BenchmarkConfig(model="test-model")
     assert config.rate == 50
@@ -111,3 +115,23 @@ def test_synthetic_data_uses_synthetic_text_and_data_loader():
     assert data["output_tokens"] == 1000
     assert "--data-loader" in cmd
     assert cmd[cmd.index("--data-loader") + 1] == "kind=pytorch,samples=1000"
+
+
+def test_request_format_omitted_from_backend_when_unset():
+    cmd = _build_cmd()
+    assert "request_format=" not in _backend_value(cmd)
+
+
+def test_request_format_included_in_backend_when_set():
+    cmd = _build_cmd(request_format="/v1/completions")
+    assert "request_format=/v1/completions" in _backend_value(cmd)
+
+
+def test_responses_endpoint_allowed():
+    cmd = _build_cmd(request_format="/v1/responses")
+    assert "request_format=/v1/responses" in _backend_value(cmd)
+
+
+def test_invalid_request_format_rejected():
+    with pytest.raises(ValueError, match="request_format"):
+        BenchmarkConfig(model="m", request_format="chat_completions")
