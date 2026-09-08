@@ -23,6 +23,7 @@
 | `.github/workflows/ci.yml` | Ruff, pytest matrix |
 | `pyproject.toml` | Dependencies and tooling |
 | `README.md` | Install and usage |
+| `CHANGELOG.md` | Release notes since fork baseline |
 
 **CLI:** `auto-tune-vllm` → `auto_tune_vllm.cli:main`
 
