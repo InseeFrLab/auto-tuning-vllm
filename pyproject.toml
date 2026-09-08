@@ -5,13 +5,22 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "auto-tune-vllm"
 version = "0.1.0"
-description = "Distributed hyperparameter optimization framework for vLLM serving"
+description = "Automatic performance tuning for vLLM serving with Optuna and GuideLLM"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
     {name = "Your Name", email = "your.email@example.com"}
 ]
-keywords = ["vllm", "optimization", "llm", "serving", "benchmarking", "ray"]
+keywords = [
+    "vllm",
+    "optuna",
+    "guidellm",
+    "llm-inference",
+    "speculative-decoding",
+    "hyperparameter-optimization",
+    "llm-serving",
+    "benchmarking",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -56,9 +65,10 @@ viz = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/openshift-psap/auto-tuning-vllm"
-Repository = "https://github.com/openshift-psap/auto-tuning-vllm"
-Issues = "https://github.com/openshift-psap/auto-tuning-vllm/issues"
+Homepage = "https://github.com/InseeFrLab/auto-tuning-vllm"
+Repository = "https://github.com/InseeFrLab/auto-tuning-vllm"
+Issues = "https://github.com/InseeFrLab/auto-tuning-vllm/issues"
+Changelog = "https://github.com/InseeFrLab/auto-tuning-vllm/blob/main/CHANGELOG.md"
 
 [project.scripts]
 auto-tune-vllm = "auto_tune_vllm.cli:main"
