@@ -179,6 +179,7 @@ class OptimizationConfig:
     sampler: str = "tpe"  # "tpe", "random", "gp", "botorch", "nsga2", "grid"
     n_trials: int = 100
     n_startup_trials: int = 10  # Number of random startup trials
+    no_repeat: bool = True  # Skip parameter combinations already used in the study
     max_concurrent_trials: Optional[int] = (
         None  # Maximum concurrent trials (required for resource management)
     )
@@ -202,6 +203,14 @@ class OptimizationConfig:
         else:
             self._apply_default_config()
         self._validate_log_metrics()
+        self._validate_no_repeat()
+
+    def _validate_no_repeat(self) -> None:
+        """Validate no_repeat is a boolean."""
+        if not isinstance(self.no_repeat, bool):
+            raise ValueError(
+                f"no_repeat must be a boolean, got {type(self.no_repeat).__name__}"
+            )
 
     def _validate_log_metrics(self) -> None:
         """Normalize and validate log_metrics (independent of objective setup)."""
