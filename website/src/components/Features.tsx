@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react'
+import { InstitutionalLogos } from './InstitutionalLogos'
 
 const FEATURES = [
   'Workload-aware tuning',
@@ -12,7 +13,7 @@ export function Features() {
 
   return (
     <motion.footer
-      className="shrink-0 pb-[clamp(1.25rem,3vh,2rem)] pt-[clamp(0.75rem,2vh,1.5rem)]"
+      className="relative shrink-0 pb-[clamp(1.25rem,3vh,2rem)] pt-[clamp(0.75rem,2vh,1.5rem)]"
       initial={reducedMotion ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
@@ -38,6 +39,7 @@ export function Features() {
           </motion.li>
         ))}
       </ul>
+      <InstitutionalLogos />
     </motion.footer>
   )
 }
