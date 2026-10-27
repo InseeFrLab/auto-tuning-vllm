@@ -3,8 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'website/**'
+      - '.github/workflows/website-ci.yml'
+      - '.github/workflows/website-pages.yml'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'website/**'
+      - '.github/workflows/website-ci.yml'
+      - '.github/workflows/website-pages.yml'
 
 # Cancel in-progress runs for the same branch
 concurrency:
