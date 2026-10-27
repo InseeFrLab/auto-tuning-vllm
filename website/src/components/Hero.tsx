@@ -43,8 +43,8 @@ export function Hero() {
         {...motionProps(0.05 + stagger * 3)}
       >
         Optimize vLLM for your actual workloads. Explore configurations,
-        benchmark performance, and find the right balance between latency and
-        throughput.
+        benchmark performance, and discover stronger setups tailored to the
+        objectives you define for your deployment.
       </motion.p>
       <motion.div
         className="flex flex-wrap items-center gap-x-8 gap-y-4"
