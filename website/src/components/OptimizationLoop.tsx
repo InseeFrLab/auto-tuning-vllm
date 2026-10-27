@@ -18,7 +18,7 @@ export function OptimizationLoop() {
 
   return (
     <motion.div
-      className="relative mx-auto flex w-full max-w-md items-center justify-center lg:mx-0 lg:max-w-none lg:justify-end lg:pr-[clamp(0rem,3vw,3rem)]"
+      className="relative mx-auto flex w-full max-w-lg items-center justify-center lg:mx-0 lg:max-w-none lg:justify-end lg:pr-[clamp(0rem,3vw,3rem)]"
       initial={reducedMotion ? false : { opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
@@ -30,7 +30,7 @@ export function OptimizationLoop() {
     >
       <svg
         viewBox="0 0 320 320"
-        className="h-[clamp(14rem,32vh,22rem)] w-[clamp(14rem,32vh,22rem)] max-w-full"
+        className="h-[clamp(15.5rem,36vh,24.5rem)] w-[clamp(15.5rem,36vh,24.5rem)] max-w-full"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
