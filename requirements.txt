@@ -1,11 +1,14 @@
 optuna>=3.0.0
-vllm>=0.2.0
-guidellm>=0.7.1
+optuna-integration[botorch]>=4.0.0
+vllm>=0.11.0
+guidellm>=0.7.1,<0.8
 pyyaml>=6.0
 pydantic>=2.0.0
 typer>=0.9.0
 rich>=13.0.0
 requests>=2.28.0
+gpytorch>=1.1
+prometheus-client>=0.17.0
 
 # Ray is optional and intentionally excluded from the base requirements.
 # Install the project with the ray extra when distributed execution is needed:
