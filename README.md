@@ -79,6 +79,20 @@ auto-tune-vllm logs --study-name study_35884
 
 Core dependencies are installed with `pip install -e .`. Ray is optional and available via `pip install -e ".[ray]"`.
 
+## Manual integration test
+
+The GuideLLM integration test runs a real benchmark against GuideLLM's mock
+vLLM-compatible server. It requires no GPU or model download and is excluded
+from the default test suite. Run it on demand with:
+
+```bash
+pip install -e ".[dev]"
+pytest -v manual_tests/test_guidellm_mock_server.py
+```
+
+After the workflow is merged into the default branch, it can also be started
+from GitHub Actions: **Manual GuideLLM mock integration test → Run workflow**.
+
 ## Roadmap
 
 ### In progress
