@@ -79,6 +79,34 @@ auto-tune-vllm logs --study-name study_35884
 
 Core dependencies are installed with `pip install -e .`. Ray is optional and available via `pip install -e ".[ray]"`.
 
+## Manual integration test
+
+The opt-in autotuner integration suite runs complete optimization studies through
+`auto-tune-vllm optimize`, using real GuideLLM benchmarks and SQLite/Optuna storage.
+Only vLLM is substituted with a small streaming HTTP server inspired by GuideLLM's
+mock server. No GPU, model download, or external service is required.
+
+Each scenario runs four sequential trials: concurrent, trace replay, multi-image,
+server startup failure, and inference failure. The tests check metrics against
+raw reports, objective calculation, failure recovery, request payloads, and process
+cleanup between trials. Benchmarks are capped at 20 seconds each; the full suite
+can take several minutes including startup and cleanup.
+
+The suite is excluded from default pytest discovery and requires explicit opt-in:
+
+```bash
+pip install -e ".[dev]"
+AUTOTUNER_E2E=1 pytest -v manual_tests/test_autotuner_e2e.py
+```
+
+Run on Linux (process cleanup assertions use `/proc`). To select one scenario, add
+`-k trace_replay`, `-k multi_image`, or `-k recovers`.
+After the workflow is merged into the default branch, use GitHub Actions:
+**Manual autotuner integration tests → Run workflow**. This workflow has no push,
+pull request, or scheduled trigger. Its logs and reports are uploaded as artifacts.
+These tests cover orchestration and API integration; GPU execution remains a
+separate validation step.
+
 ## Roadmap
 
 ### In progress
