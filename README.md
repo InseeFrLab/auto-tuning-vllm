@@ -24,16 +24,13 @@ For a detailed starter guide, see the [Quick Start Guide](docs/quick_start.md).
 
 ### Installation
 
-Install the base package for local execution. Add the optional `ray` extra only if you want distributed execution.
-
-From PyPI (available after the first release):
+From PyPI (after the first release):
 
 ```bash
 pip install auto-tune-vllm
-auto-tune-vllm --help
 ```
 
-To install from source or contribute:
+Install the base package for local execution. Add the optional `ray` extra only if you want distributed execution.
 
 ```bash
 git clone https://github.com/InseeFrLab/auto-tuning-vllm.git
@@ -79,7 +76,6 @@ auto-tune-vllm logs --study-name study_35884
 - [Examples](examples/README.md) — Sample study YAMLs and Python demos
 - [Ray Cluster Setup](docs/ray_cluster_setup.md) — For distributed optimization (optional)
 - [AGENTS.md](AGENTS.md) — Guide for coding assistants and maintainers
-- [Release procedure](docs/releasing.md) — Version updates, package checks and PyPI Trusted Publishing
 
 ## Requirements
 
@@ -87,7 +83,7 @@ auto-tune-vllm logs --study-name study_35884
 - NVIDIA GPU with CUDA support (for running vLLM)
 - SQLite (included) or PostgreSQL (optional)
 
-Core dependencies, including vLLM, are installed with `pip install auto-tune-vllm` (or `pip install -e .` from source). Use a Linux environment supported by vLLM; installing this package also installs its GPU runtime dependencies. Ray is optional and available via `pip install "auto-tune-vllm[ray]"`.
+Core dependencies are installed with `pip install -e .`. Ray is optional and available via `pip install -e ".[ray]"`.
 
 ## Roadmap
 
@@ -112,6 +108,33 @@ Contributions are welcome. Priority areas:
 1. **Testing** — Extending coverage for controllers, backends, and edge cases
 2. **Documentation** — Improving guides and examples
 3. **Core stability** — Bug fixes and edge case handling
+
+## Releasing to PyPI
+
+Before the first release, create the GitHub environment `pypi`, restrict it to
+tags matching `v*`, and configure required reviewers where available. On PyPI,
+add a GitHub Trusted Publisher with owner `InseeFrLab`, repository
+`auto-tuning-vllm`, workflow filename `publish.yml` and environment `pypi`.
+For a new project, register a pending publisher for `auto-tune-vllm` in
+[PyPI account publishing](https://pypi.org/manage/account/publishing/).
+No permanent PyPI token is needed. See the
+[official Trusted Publishing guide](https://docs.pypi.org/trusted-publishers/using-a-publisher/).
+
+1. Update the version in `pyproject.toml` and `auto_tune_vllm/__init__.py`
+   together, update the changelog, and open a PR against `main`.
+2. Wait for **Package CI** to pass, review and merge the PR.
+3. From an up-to-date, clean `main`, create and push the version tag.
+   For the initial version (already `0.1.0`):
+
+   ```bash
+   git tag -a v0.1.0 -m "Release 0.1.0"
+   git push origin v0.1.0
+   ```
+
+Pushing the tag triggers `publish.yml`. It rejects tags that differ from
+`v` followed by the exact version in `pyproject.toml`, builds and checks both
+distributions, then publishes through OIDC in the `pypi` environment.
+Approve the deployment if required and check the workflow result on GitHub.
 
 ## Project history
 
