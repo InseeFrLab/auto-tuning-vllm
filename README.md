@@ -26,6 +26,15 @@ For a detailed starter guide, see the [Quick Start Guide](docs/quick_start.md).
 
 Install the base package for local execution. Add the optional `ray` extra only if you want distributed execution.
 
+From PyPI (available after the first release):
+
+```bash
+pip install auto-tune-vllm
+auto-tune-vllm --help
+```
+
+To install from source or contribute:
+
 ```bash
 git clone https://github.com/InseeFrLab/auto-tuning-vllm.git
 cd auto-tuning-vllm
@@ -70,6 +79,7 @@ auto-tune-vllm logs --study-name study_35884
 - [Examples](examples/README.md) — Sample study YAMLs and Python demos
 - [Ray Cluster Setup](docs/ray_cluster_setup.md) — For distributed optimization (optional)
 - [AGENTS.md](AGENTS.md) — Guide for coding assistants and maintainers
+- [Release procedure](docs/releasing.md) — Version updates, package checks and PyPI Trusted Publishing
 
 ## Requirements
 
@@ -77,7 +87,7 @@ auto-tune-vllm logs --study-name study_35884
 - NVIDIA GPU with CUDA support (for running vLLM)
 - SQLite (included) or PostgreSQL (optional)
 
-Core dependencies are installed with `pip install -e .`. Ray is optional and available via `pip install -e ".[ray]"`.
+Core dependencies, including vLLM, are installed with `pip install auto-tune-vllm` (or `pip install -e .` from source). Use a Linux environment supported by vLLM; installing this package also installs its GPU runtime dependencies. Ray is optional and available via `pip install "auto-tune-vllm[ray]"`.
 
 ## Roadmap
 
