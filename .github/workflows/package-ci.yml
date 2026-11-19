@@ -25,7 +25,21 @@ jobs:
       - name: Validate metadata and archive contents
         run: |
           python -m twine check --strict dist/*
-          python scripts/check_distributions.py
+          python - <<'PY'
+          import tarfile
+          import zipfile
+          from pathlib import Path
+
+          with zipfile.ZipFile(next(Path("dist").glob("*.whl"))) as wheel, \
+               tarfile.open(next(Path("dist").glob("*.tar.gz"))) as sdist:
+              prefix = sdist.getnames()[0].split("/")[0]
+              for path in Path("auto_tune_vllm").rglob("*"):
+                  if path.is_file() and path.suffix in {".py", ".yaml", ".json"}:
+                      assert wheel.read(path.as_posix()) == path.read_bytes(), path
+                      assert sdist.extractfile(f"{prefix}/{path.as_posix()}").read() == path.read_bytes(), path
+              assert any(name.endswith("/LICENSE") for name in wheel.namelist())
+              assert sdist.extractfile(f"{prefix}/LICENSE").read() == Path("LICENSE").read_bytes()
+          PY
       - name: Install wheel with all dependencies in an isolated environment
         run: |
           python -m venv "$RUNNER_TEMP/package-venv"
@@ -35,4 +49,13 @@ jobs:
       - name: Check installed imports, resources and CLI outside the checkout
         run: |
           cd "$RUNNER_TEMP"
-          "$RUNNER_TEMP/package-venv/bin/python" -I "$GITHUB_WORKSPACE/scripts/check_installed_package.py"
+          "$RUNNER_TEMP/package-venv/bin/python" -I - <<'PY'
+          from importlib.metadata import version
+          import auto_tune_vllm
+          import auto_tune_vllm.cli
+          from auto_tune_vllm.utils.version_manager import VLLMVersionManager
+
+          assert auto_tune_vllm.__version__ == version("auto-tune-vllm")
+          assert VLLMVersionManager().load_defaults()["defaults"]
+          PY
+          "$RUNNER_TEMP/package-venv/bin/auto-tune-vllm" --help

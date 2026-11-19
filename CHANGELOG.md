@@ -39,7 +39,6 @@ The fork baseline is commit [`3c4264d`](https://github.com/InseeFrLab/auto-tunin
 
 ### Tooling and documentation
 
-- **PyPI release preparation** — wheel/sdist validation on PRs, tag/version checks, OIDC Trusted Publishing and a [release procedure](docs/releasing.md)
 - **Optuna Dashboard launcher** — `optuna_dashboard/start_optuna_dashboard.sh` with a sample `study.db` to explore results immediately ([#14](https://github.com/InseeFrLab/auto-tuning-vllm/pull/14))
 - **Architecture guide** — [docs/architecture.md](docs/architecture.md) with Mermaid diagrams ([#23](https://github.com/InseeFrLab/auto-tuning-vllm/pull/23))
 - **Agent onboarding** — `AGENTS.md`, `.ai/context/`, and `.ai/skills/` for contributors and coding assistants ([#23](https://github.com/InseeFrLab/auto-tuning-vllm/pull/23))
