@@ -1,0 +1,32 @@
+name: Manual autotuner integration tests
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+      - name: Run autotuner integration tests
+        env:
+          AUTOTUNER_E2E: "1"
+        run: pytest -v manual_tests/test_autotuner_e2e.py --basetemp=manual-test-results --junitxml=manual-test-results.xml
+      - name: Upload logs and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autotuner-integration-results
+          path: |
+            manual-test-results/
+            manual-test-results.xml

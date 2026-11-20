@@ -737,25 +737,34 @@ class StudyController:
                 ):
                     self._set_trial_user_attributes(result.trial_number, result)
 
-                    if result.success and result.objective_values:
+                    succeeded = result.success and bool(result.objective_values)
+                    state = TrialState.COMPLETE if succeeded else TrialState.FAIL
+                    try:
                         self.study.tell(
                             trial=result.trial_number,
-                            values=result.objective_values,
-                            state=TrialState.COMPLETE,
+                            values=result.objective_values if succeeded else None,
+                            state=state,
                         )
+                    except RuntimeError as exc:
+                        # GridSampler calls Study.stop() after exhausting its grid.
+                        # With ask/tell, Optuna persists the final result first, then
+                        # raises because stop() requires an optimize() context.
+                        if not (
+                            isinstance(self.study.sampler, GridSampler)
+                            and "`Study.stop`" in str(exc)
+                            and self.study.trials[result.trial_number].state == state
+                        ):
+                            raise
+                    if succeeded:
                         logger.info(
                             "Trial %s completed successfully: %s",
                             trial_id,
                             result.objective_values,
                         )
                     else:
-                        # Failed trial
-                        self.study.tell(
-                            trial=result.trial_number,
-                            values=None,
-                            state=TrialState.FAIL,
+                        logger.error(
+                            "Trial %s failed: %s", trial_id, result.error_message
                         )
-                        logger.error(f"Trial {trial_id} failed: {result.error_message}")
 
                     if result.trial_number in self.trial_objects:
                         del self.trial_objects[result.trial_number]

@@ -73,6 +73,9 @@ Changelog = "https://github.com/InseeFrLab/auto-tuning-vllm/blob/main/CHANGELOG.
 [project.scripts]
 auto-tune-vllm = "auto_tune_vllm.cli:main"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["auto_tune_vllm*"]

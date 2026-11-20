@@ -463,6 +463,14 @@ class GuideLLMBenchmark(BenchmarkProvider):
             benchmark_data = benchmarks[0]
             metrics = benchmark_data["metrics"]
 
+            # GuideLLM can exit successfully even when every HTTP request failed.
+            # Such reports contain zero-valued metrics, not usable observations.
+            successful = metrics.get("request_latency", {}).get("successful", {})
+            if successful.get("count") == 0:
+                raise RuntimeError(
+                    "GuideLLM benchmark completed without successful requests"
+                )
+
             # Extract key metrics with percentiles
             result = {}
 
