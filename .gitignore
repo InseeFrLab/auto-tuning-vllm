@@ -33,3 +33,6 @@ logs/
 optuna_studies/
 
 .cursor/
+
+# Local video production files
+/video/

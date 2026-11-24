@@ -27,7 +27,7 @@ export function Hero() {
         OPEN SOURCE · LLM INFERENCE
       </motion.p>
       <motion.h1
-        className="font-display mb-[clamp(0.5rem,1.5vh,1rem)] text-[clamp(2.75rem,6.5vw,4.5rem)] font-normal leading-[1.05] tracking-tight text-off-white"
+        className="font-display mb-[clamp(0.5rem,1.5vh,1rem)] text-[clamp(2.35rem,11.6vw,2.75rem)] font-normal leading-[1.05] tracking-tight text-off-white sm:text-[clamp(2.75rem,6.5vw,4.5rem)]"
         {...motionProps(0.05 + stagger)}
       >
         Auto-Tune vLLM
