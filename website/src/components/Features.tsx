@@ -13,7 +13,7 @@ export function Features() {
 
   return (
     <motion.footer
-      className="relative shrink-0 pb-[clamp(1.25rem,3vh,2rem)] pt-[clamp(0.75rem,2vh,1.5rem)]"
+      className="relative shrink-0 pb-[clamp(1.25rem,3vh,2rem)] pt-[clamp(0.75rem,2vh,1.5rem)] xl:flex xl:items-center xl:justify-between xl:gap-8"
       initial={reducedMotion ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{
@@ -22,7 +22,7 @@ export function Features() {
         ease: [0.22, 1, 0.36, 1],
       }}
     >
-      <ul className="grid grid-cols-2 gap-x-6 gap-y-3 lg:flex lg:flex-wrap lg:items-center lg:justify-center lg:gap-x-[clamp(2rem,5vw,4.5rem)] lg:gap-y-2">
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-3 lg:flex lg:flex-wrap lg:items-center lg:justify-center lg:gap-x-[clamp(2rem,5vw,4.5rem)] lg:gap-y-2 xl:justify-start xl:gap-x-[clamp(1rem,3vw,3rem)]">
         {FEATURES.map((label, index) => (
           <motion.li
             key={label}
